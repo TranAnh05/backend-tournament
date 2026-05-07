@@ -1,6 +1,7 @@
 package com.example.tournament.controller.admin;
 
 import com.example.tournament.payload.request.admin.SportCreateRequest;
+import com.example.tournament.payload.request.admin.SportUpdateRequest;
 import com.example.tournament.payload.response.ApiResponse;
 import com.example.tournament.payload.response.admin.PageResponse;
 import com.example.tournament.payload.response.admin.SportResponse;
@@ -44,6 +45,22 @@ public class AdminSportController {
                 .code(HttpStatus.OK.value())
                 .message("Lấy danh sách môn thể thao thành công")
                 .result(pageResponse)
+                .build();
+
+        return ResponseEntity.ok(response);
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<ApiResponse<SportResponse>> updateSport(
+            @PathVariable Long id,
+            @Valid @RequestBody SportUpdateRequest request) {
+
+        SportResponse updatedSport = sportService.updateSport(id, request);
+
+        ApiResponse<SportResponse> response = ApiResponse.<SportResponse>builder()
+                .code(HttpStatus.OK.value())
+                .message("Cập nhật môn thể thao thành công")
+                .result(updatedSport)
                 .build();
 
         return ResponseEntity.ok(response);
