@@ -9,6 +9,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
+
 
 @Repository
 public interface TournamentRepository extends JpaRepository<Tournament, Long> {
@@ -24,4 +26,8 @@ public interface TournamentRepository extends JpaRepository<Tournament, Long> {
             "AND (:name IS NULL OR LOWER(t.name) LIKE LOWER(CONCAT('%', :name, '%')))")
     Page<Tournament> findAllWithFilters(@Param("isAdmin") boolean isAdmin,
                                         @Param("name") String name, Pageable pageable);
+
+    // ADMIN
+    // Kiểm tra xem có giải đấu nào của môn thể thao nằm trong danh sách các status chỉ định không
+    boolean existsBySportIdAndStatusIn(Long sportId, List<TournamentStatus> statuses);
 }
