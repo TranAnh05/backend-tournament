@@ -3,6 +3,7 @@ package com.example.tournament.service;
 import com.example.tournament.entity.Sport;
 import com.example.tournament.entity.SportRule;
 import com.example.tournament.enums.CommonStatus;
+import com.example.tournament.enums.TournamentStatus;
 import com.example.tournament.exception.custom.AppException;
 import com.example.tournament.payload.request.admin.RuleRequest;
 import com.example.tournament.payload.request.admin.SportCreateRequest;
@@ -11,6 +12,7 @@ import com.example.tournament.payload.response.admin.PageResponse;
 import com.example.tournament.payload.response.admin.RuleResponse;
 import com.example.tournament.payload.response.admin.SportResponse;
 import com.example.tournament.repository.SportRepository;
+import com.example.tournament.repository.TournamentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -21,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -30,6 +33,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class SportService {
     private final SportRepository sportRepository;
+    private final TournamentRepository tournamentRepository;
 
     // ADMIN
     @Transactional
@@ -169,5 +173,35 @@ public class SportService {
         // TRƯỜNG HỢP 3: Những luật còn sót lại trong Map là những luật bị xóa
         sport.getRules().clear();
         sport.getRules().addAll(updatedRulesList);
+    }
+
+    @Transactional
+    public SportResponse updateStatus(Long id, CommonStatus newStatus) {
+        // Tìm môn thể thao
+        Sport sport = sportRepository.findById(id)
+                .orElseThrow(() -> new AppException(HttpStatus.NOT_FOUND, "Không tìm thấy môn thể thao này"));
+
+        // Logic kiểm tra ràng buộc khi KHÓA môn thể thao
+        if (newStatus == CommonStatus.INACTIVE) {
+            // Danh sách các trạng thái giải đấu không cho phép khóa môn học
+            List<TournamentStatus> activeStatuses = Arrays.asList(
+                    TournamentStatus.DRAFT,
+                    TournamentStatus.REGISTRATION_OPEN,
+                    TournamentStatus.ONGOING
+            );
+
+            boolean hasActiveTournaments = tournamentRepository.existsBySportIdAndStatusIn(id, activeStatuses);
+
+            if (hasActiveTournaments) {
+                throw new AppException(HttpStatus.BAD_REQUEST,
+                        "Không thể khóa môn này vì đang có giải đấu trong trạng thái chuẩn bị, đăng ký hoặc đang diễn ra.");
+            }
+        }
+
+        // Thực hiện cập nhật nếu vượt qua kiểm tra
+        sport.setStatus(newStatus);
+        Sport updatedSport = sportRepository.save(sport);
+
+        return mapToSportResponse(updatedSport);
     }
 }

@@ -2,6 +2,7 @@ package com.example.tournament.controller.admin;
 
 import com.example.tournament.payload.request.admin.SportCreateRequest;
 import com.example.tournament.payload.request.admin.SportUpdateRequest;
+import com.example.tournament.payload.request.admin.StatusUpdateRequest;
 import com.example.tournament.payload.response.ApiResponse;
 import com.example.tournament.payload.response.admin.PageResponse;
 import com.example.tournament.payload.response.admin.SportResponse;
@@ -60,6 +61,22 @@ public class AdminSportController {
         ApiResponse<SportResponse> response = ApiResponse.<SportResponse>builder()
                 .code(HttpStatus.OK.value())
                 .message("Cập nhật môn thể thao thành công")
+                .result(updatedSport)
+                .build();
+
+        return ResponseEntity.ok(response);
+    }
+
+    @PatchMapping("/{id}/status")
+    public ResponseEntity<ApiResponse<SportResponse>> updateStatus(
+            @PathVariable Long id,
+            @Valid @RequestBody StatusUpdateRequest request) {
+
+        SportResponse updatedSport = sportService.updateStatus(id, request.getStatus());
+
+        ApiResponse<SportResponse> response = ApiResponse.<SportResponse>builder()
+                .code(HttpStatus.OK.value())
+                .message("Cập nhật trạng thái thành công")
                 .result(updatedSport)
                 .build();
 
