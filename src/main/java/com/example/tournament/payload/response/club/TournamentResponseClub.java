@@ -7,7 +7,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @Builder
-public class TournamentResponse {
+public class TournamentResponseClub {
     private Long id;
     private String name;
     private Long sportId;
