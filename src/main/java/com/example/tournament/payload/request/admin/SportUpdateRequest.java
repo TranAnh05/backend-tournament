@@ -7,7 +7,7 @@ import lombok.Data;
 import java.util.List;
 
 @Data
-public class SportCreateRequest {
+public class SportUpdateRequest {
     @NotBlank(message = "Tên môn thể thao không được để trống")
     private String name;
 
