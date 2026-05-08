@@ -1,6 +1,9 @@
 package com.example.tournament.controller;
 
+import com.example.tournament.entity.Tournament;
 import com.example.tournament.enums.RoleCode;
+import com.example.tournament.payload.response.ApiResponse;
+import com.example.tournament.payload.response.Tournament.TournamentDetailResponse;
 import com.example.tournament.payload.response.Tournament.TournamentResponse;
 import com.example.tournament.security.jwt.JwtTokenProvider;
 import com.example.tournament.service.TournamentService;
@@ -12,15 +15,12 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.nio.file.attribute.UserPrincipal;
 
 @RestController
-@RequestMapping("tournaments")
+@RequestMapping("/tournaments")
 @RequiredArgsConstructor
 public class TournamentController {
     private final TournamentService tournamentService;
@@ -37,5 +37,14 @@ public class TournamentController {
         RoleCode role = jwtTokenProvider.getRoleFromAuthentication(authentication);
 
         return ResponseEntity.ok(tournamentService.getAllTournaments(pageable,role, name));
+    }
+
+    @GetMapping("/{id}")
+    public ApiResponse<TournamentDetailResponse> getTournamentById(@PathVariable Long id) {
+        return ApiResponse.<TournamentDetailResponse>builder()
+                .code(200)
+                .message("Lấy chi tiết giải đấu thành công")
+                .result(tournamentService.getTournamentById(id))
+                .build();
     }
 }

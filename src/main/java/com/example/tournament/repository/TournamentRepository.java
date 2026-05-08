@@ -9,14 +9,17 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Optional;
 import java.util.List;
 
 
 @Repository
 public interface TournamentRepository extends JpaRepository<Tournament, Long> {
-    // Lấy danh sách giải đấu theo trạng thái (cho VĐV/Manager)
-    Page<Tournament> findByStatusNot(TournamentStatus status, Pageable pageable);
-
+    @Query("SELECT t FROM Tournament t " +
+            "JOIN FETCH t.sport " +
+            "JOIN FETCH t.venue " +
+            "WHERE t.id = :id")
+    Optional<Tournament> findByIdWithDetails(@Param("id") Long id);
     // Tìm kiếm theo tên (nếu cần)
     Page<Tournament> findByNameContainingIgnoreCase(String name, Pageable pageable);
     @Query("SELECT t FROM Tournament t " +
