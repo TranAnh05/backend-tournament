@@ -1,5 +1,6 @@
 package com.example.tournament.payload.request.admin;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
@@ -12,5 +13,6 @@ public class SportCreateRequest {
 
     private String description;
 
+    @Valid
     private List<RuleRequest> rules;
 }

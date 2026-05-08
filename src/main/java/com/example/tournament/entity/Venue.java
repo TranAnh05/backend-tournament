@@ -8,7 +8,9 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 @Entity
 @Table(name = "venues")
@@ -43,5 +45,5 @@ public class Venue {
 
     @OneToMany(mappedBy = "venue", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
-    private List<Court> courts = new ArrayList<>();
+    private Set<Court> courts = new LinkedHashSet<>();
 }
