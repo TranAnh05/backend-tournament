@@ -71,6 +71,10 @@ public class SecurityConfig {
                         // Cho phép tất cả mọi người truy cập API Đăng nhập / Đăng ký
                         .requestMatchers("/auth/**").permitAll()
 
+                        //Kiệt them phan nay
+                        .requestMatchers("/clubs/**").authenticated()
+
+
                         // Phân quyền theo Role
                         .requestMatchers("/admin/**").hasRole("ADMIN")
                         .requestMatchers("/tournaments/manage/**").hasAnyRole("ADMIN", "ORGANIZER")
