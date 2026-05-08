@@ -33,4 +33,8 @@ public interface TournamentRepository extends JpaRepository<Tournament, Long> {
     // ADMIN
     // Kiểm tra xem có giải đấu nào của môn thể thao nằm trong danh sách các status chỉ định không
     boolean existsBySportIdAndStatusIn(Long sportId, List<TournamentStatus> statuses);
+
+    @Query("SELECT COUNT(t) > 0 FROM Tournament t WHERE t.venue.id = :venueId " +
+            "AND t.status IN ('DRAFT', 'REGISTRATION_OPEN', 'ONGOING')")
+    boolean hasActiveTournamentsAtVenue(@Param("venueId") Long venueId);
 }

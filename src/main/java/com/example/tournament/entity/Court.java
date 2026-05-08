@@ -57,4 +57,7 @@ public class Court {
     @OneToMany(mappedBy = "court")
     @Builder.Default
     private List<Match> matches = new ArrayList<>();
+
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
 }

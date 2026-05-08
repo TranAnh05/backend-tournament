@@ -1,6 +1,9 @@
 package com.example.tournament.controller.admin;
 
+import com.example.tournament.enums.CommonStatus;
 import com.example.tournament.payload.request.admin.VenueCreateRequest;
+import com.example.tournament.payload.request.admin.VenueStatusUpdateRequest;
+import com.example.tournament.payload.request.admin.VenueUpdateRequest;
 import com.example.tournament.payload.response.ApiResponse;
 import com.example.tournament.payload.response.admin.PageResponse;
 import com.example.tournament.payload.response.admin.VenueResponse;
@@ -48,5 +51,37 @@ public class AdminVenueController {
                 .build();
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<ApiResponse<VenueResponse>> updateVenue(
+            @PathVariable Long id,
+            @Valid @RequestBody VenueUpdateRequest request) {
+
+        VenueResponse updated = venueService.updateVenue(id, request);
+
+        return ResponseEntity.ok(ApiResponse.<VenueResponse>builder()
+                .code(HttpStatus.OK.value())
+                .message("Cập nhật địa điểm thi đấu thành công")
+                .result(updated)
+                .build());
+    }
+
+    @PatchMapping("/{id}/status")
+    public ResponseEntity<ApiResponse<VenueResponse>> updateVenueStatus(
+            @PathVariable Long id,
+            @Valid @RequestBody VenueStatusUpdateRequest request) {
+
+        VenueResponse updatedVenue = venueService.updateVenueStatus(id, request);
+
+        String actionMessage = request.getStatus() == CommonStatus.ACTIVE ? "Mở khóa" : "Khóa";
+
+        ApiResponse<VenueResponse> response = ApiResponse.<VenueResponse>builder()
+                .code(HttpStatus.OK.value())
+                .message(actionMessage + " địa điểm thành công")
+                .result(updatedVenue)
+                .build();
+
+        return ResponseEntity.ok(response);
     }
 }
