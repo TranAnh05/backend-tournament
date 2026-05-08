@@ -4,7 +4,7 @@ import com.example.tournament.entity.*;
 import com.example.tournament.exception.custom.AppException;
 import com.example.tournament.payload.response.club.DisciplineResponse;
 import com.example.tournament.payload.response.club.RegistrationResponse;
-import com.example.tournament.payload.response.club.TournamentResponse;
+import com.example.tournament.payload.response.club.TournamentResponseClub;
 import com.example.tournament.repository.*;
 import com.example.tournament.security.userdetail.CustomUserDetails;
 import lombok.RequiredArgsConstructor;
@@ -16,15 +16,12 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import com.example.tournament.entity.Tournament;
 import com.example.tournament.enums.RoleCode;
-import com.example.tournament.enums.TournamentStatus;
 import com.example.tournament.exception.custom.ResourceNotFoundException;
 import com.example.tournament.payload.response.Tournament.CourtResponse;
 import com.example.tournament.payload.response.Tournament.TournamentDetailResponse;
 import com.example.tournament.payload.response.Tournament.TournamentResponse;
 import com.example.tournament.payload.response.Tournament.VenueResponse;
 import com.example.tournament.repository.TournamentRepository;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -47,9 +44,9 @@ public class TournamentService {
     }
 
     // GET /tournaments — Tất cả giải đấu
-    public List<TournamentResponse> getAllTournaments() {
+    public List<TournamentResponseClub> getAllTournaments() {
         return tournamentRepository.findAll().stream()
-                .map(t -> TournamentResponse.builder()
+                .map(t -> TournamentResponseClub.builder()
                         .id(t.getId())
                         .name(t.getName())
                         .sportId(t.getSport().getId())
