@@ -54,20 +54,20 @@ public class TournamentController {
     }
 
     // GET /tournaments
-    @GetMapping("/tournaments")
+    @GetMapping("/registrations/my")
     @PreAuthorize("hasRole('CLUB_MANAGER')")
-    public ResponseEntity<ApiResponse<List<TournamentResponseClub>>> getAllTournaments() {
+    public ResponseEntity<ApiResponse<List<RegistrationResponse>>> getMyRegistrations() {
         return ResponseEntity.ok(
-                ApiResponse.<List<TournamentResponseClub>>builder()
+                ApiResponse.<List<RegistrationResponse>>builder()
                         .code(200)
-                        .message("Lay danh sach giai dau thanh cong")
-                        .result(tournamentService.getAllTournaments())
+                        .message("Lay danh sach dang ky thanh cong")
+                        .result(tournamentService.getMyRegistrations())
                         .build()
         );
     }
 
     // GET /clubs/me/disciplines
-    @GetMapping("/clubs/me/disciplines")
+    @GetMapping("/disciplines/my")
     @PreAuthorize("hasRole('CLUB_MANAGER')")
     public ResponseEntity<ApiResponse<List<DisciplineResponse>>> getMyDisciplines() {
         return ResponseEntity.ok(
@@ -75,19 +75,6 @@ public class TournamentController {
                         .code(200)
                         .message("Lay danh sach ky luat thanh cong")
                         .result(tournamentService.getMyDisciplines())
-                        .build()
-        );
-    }
-
-    // GET /tournaments/registrations/my
-    @GetMapping("/tournaments/registrations/my")
-    @PreAuthorize("hasRole('CLUB_MANAGER')")
-    public ResponseEntity<ApiResponse<List<RegistrationResponse>>> getMyRegistrations() {
-        return ResponseEntity.ok(
-                ApiResponse.<List<RegistrationResponse>>builder()
-                        .code(200)
-                        .message("Lay danh sach dang ky giai thanh cong")
-                        .result(tournamentService.getMyRegistrations())
                         .build()
         );
     }

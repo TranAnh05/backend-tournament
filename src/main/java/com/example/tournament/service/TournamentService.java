@@ -101,7 +101,7 @@ public class TournamentService {
                         .build())
                 .collect(Collectors.toList());
     }
-  
+
   public Page<TournamentResponse> getAllTournaments(Pageable pageable, RoleCode role, String name) {
 
 
@@ -110,15 +110,22 @@ public class TournamentService {
         Page<Tournament> tournaments = tournamentRepository.findAllWithFilters(isAdminOrOrganizer,name, pageable);
 
         return tournaments.map(t -> TournamentResponse.builder()
-                .id(t.getId())
-                .name(t.getName())
-                .sportName(t.getSport().getName())
-                .venueName(t.getVenue().getName())
-                .startDate(t.getStartDate())
-                .endDate(t.getEndDate())
-                .status(t.getStatus().name())
-                .build());
-    }
+              .id(t.getId())
+              .name(t.getName())
+              .sportName(t.getSport().getName())
+              .venueName(t.getVenue().getName())
+              .startDate(t.getStartDate())
+              .endDate(t.getEndDate())
+              .winPoints(t.getWinPoints())
+              .drawPoints(t.getDrawPoints())
+              .lossPoints(t.getLossPoints())
+              .minAthletes(t.getMinAthletes())
+              .maxAthletes(t.getMaxAthletes())
+              .format(t.getFormat() != null ? t.getFormat().name() : null)
+              .status(t.getStatus().name())
+              .build());
+
+  }
     public TournamentDetailResponse getTournamentById(Long id) {
         Tournament t = tournamentRepository.findByIdWithDetails(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Tournament", "id", id));

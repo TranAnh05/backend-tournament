@@ -18,6 +18,6 @@ public class ClubResponse {
     private String homeVenueName;
     private String contactEmail;
     private String contactPhone;
-    private CommonStatus status;
+    private String status;
     private String managerName;
 }

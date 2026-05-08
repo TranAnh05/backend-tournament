@@ -57,7 +57,7 @@ public class ClubService {
                 .homeVenueName(club.getHomeVenue() != null ? club.getHomeVenue().getName() : null)
                 .contactEmail(club.getContactEmail())
                 .contactPhone(club.getContactPhone())
-                .status(club.getStatus())
+                .status(club.getStatus().name())
                 .managerName(club.getManager().getFullName())
                 .build();
     }
