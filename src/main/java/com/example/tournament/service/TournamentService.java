@@ -228,7 +228,10 @@ public class TournamentService {
     }
 
     @Transactional
-    public TournamentDetailResponse createTournament(TournamentRequest request) {
+    public TournamentDetailResponse createTournament(TournamentRequest request ) {
+        User organizer = getCurrentUser();
+        System.out.println("🔍 KIỂM TRA ID NGƯỜI TẠO: " + organizer.getId());
+
         // 1. Tìm Sport và Venue (Sử dụng ResourceNotFoundException của Trung)
         Sport sport = sportRepository.findById(request.getSportId())
                 .orElseThrow(() -> new ResourceNotFoundException("Sport", "id", request.getSportId()));
@@ -248,6 +251,7 @@ public class TournamentService {
         tournament.setWinPoints(request.getWinPoints());
         tournament.setDrawPoints(request.getDrawPoints());
         tournament.setLossPoints(request.getLostPoints());
+        tournament.setOrganizer(organizer);
 
 
         // Ép kiểu Enum cho Format nếu cần
@@ -393,6 +397,16 @@ public class TournamentService {
 
         // 4. Lưu lại sự thay đổi vào Database
         tournamentRepository.save(tournament);
+    }
+
+    private User getCurrentUser() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) {
+            throw new AppException(HttpStatus.UNAUTHORIZED, "Bạn cần đăng nhập để thực hiện thao tác này");
+        }
+
+        CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
+        return userDetails.getUser();
     }
 }
 

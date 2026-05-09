@@ -2,6 +2,7 @@ package com.example.tournament.service;
 
 import com.example.tournament.entity.Sport;
 import com.example.tournament.entity.SportRule;
+import com.example.tournament.entity.User;
 import com.example.tournament.enums.CommonStatus;
 import com.example.tournament.enums.TournamentStatus;
 import com.example.tournament.exception.custom.AppException;
@@ -13,12 +14,15 @@ import com.example.tournament.payload.response.admin.RuleResponse;
 import com.example.tournament.payload.response.admin.SportResponse;
 import com.example.tournament.repository.SportRepository;
 import com.example.tournament.repository.TournamentRepository;
+import com.example.tournament.security.userdetail.CustomUserDetails;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -204,4 +208,5 @@ public class SportService {
 
         return mapToSportResponse(updatedSport);
     }
+
 }
