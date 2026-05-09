@@ -4,6 +4,7 @@ package com.example.tournament.service;
 import com.example.tournament.entity.*;
 import com.example.tournament.enums.ClubRole;
 import com.example.tournament.enums.JoinStatus;
+import com.example.tournament.enums.RosterRole;
 import com.example.tournament.exception.custom.AppException;
 import com.example.tournament.exception.custom.ResourceNotFoundException;
 import com.example.tournament.payload.request.club.*;
@@ -22,6 +23,14 @@ import com.example.tournament.payload.response.club.TournamentHistoryResponse;
 import com.example.tournament.repository.StandingRepository;
 import com.example.tournament.repository.TournamentRegistrationRepository;
 import java.util.stream.Collectors;
+import com.example.tournament.entity.TournamentRoster;
+import com.example.tournament.enums.RegistrationStatus;
+import com.example.tournament.enums.RosterRole;
+import com.example.tournament.enums.RosterStatus;
+import com.example.tournament.payload.request.club.RosterRequest;
+import com.example.tournament.payload.response.club.RosterResponse;
+import com.example.tournament.repository.TournamentRepository;
+import com.example.tournament.repository.TournamentRosterRepository;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -37,6 +46,8 @@ public class ClubService {
     private final VenueRepository       venueRepository;
     private final TournamentRegistrationRepository registrationRepository;
     private final StandingRepository standingRepository;
+    private final TournamentRepository tournamentRepository;
+    private final TournamentRosterRepository rosterRepository;
 
     // ─── Helper: lấy User đang đăng nhập ────────────────────────
     private User getCurrentUser() {
@@ -335,5 +346,95 @@ public class ClubService {
 
         member.setClubRole(newRole);
         return toMemberResponse(clubMemberRepository.save(member));
+    }
+
+    // Lấy danh sách roster hiện tại của CLB trong giải
+    public RosterResponse getMyRoster(Long tournamentId) {
+        Club club = getMyClub();
+
+        Tournament tournament = tournamentRepository.findById(tournamentId)
+                .orElseThrow(() -> new AppException(HttpStatus.NOT_FOUND, "Không tìm thấy giải đấu"));
+
+        // Kiểm tra CLB có đăng ký giải này không
+        registrationRepository.findByTournamentIdAndClub(tournamentId, club)
+                .orElseThrow(() -> new AppException(HttpStatus.FORBIDDEN, "CLB chưa đăng ký giải đấu này"));
+
+        List<RosterResponse.RosterPlayerResponse> players = rosterRepository
+                .findByTournamentAndClub(tournament, club)
+                .stream()
+                .map(r -> RosterResponse.RosterPlayerResponse.builder()
+                        .rosterId(r.getId())
+                        .athleteId(r.getAthlete().getId())
+                        .fullName(r.getAthlete().getUser().getFullName())
+                        .jerseyNumber(r.getJerseyNumber())
+                        .position(r.getPosition())
+                        .role(r.getRole().name())
+                        .status(r.getStatus().name())
+                        .healthStatus(r.getAthlete().getHealthStatus().name())
+                        .build())
+                .collect(Collectors.toList());
+
+        return RosterResponse.builder()
+                .tournamentId(tournament.getId())
+                .tournamentName(tournament.getName())
+                .players(players)
+                .build();
+    }
+
+    // Chốt danh sách thi đấu
+    @Transactional
+    public RosterResponse submitRoster(Long tournamentId, RosterRequest request) {
+        Club club = getMyClub();
+
+        Tournament tournament = tournamentRepository.findById(tournamentId)
+                .orElseThrow(() -> new AppException(HttpStatus.NOT_FOUND, "Không tìm thấy giải đấu"));
+
+        // Kiểm tra CLB đã APPROVED vào giải chưa
+        TournamentRegistration reg = registrationRepository
+                .findByTournamentIdAndClub(tournamentId, club)
+                .orElseThrow(() -> new AppException(HttpStatus.FORBIDDEN, "CLB chưa đăng ký giải đấu này"));
+
+        if (reg.getStatus() != RegistrationStatus.APPROVED) {
+            throw new AppException(HttpStatus.FORBIDDEN, "CLB chưa được duyệt vào giải đấu này");
+        }
+
+        // Kiểm tra số lượng VĐV
+        int count = request.getPlayers().size();
+        if (count < tournament.getMinAthletes()) {
+            throw new AppException(HttpStatus.BAD_REQUEST,
+                    "Cần tối thiểu " + tournament.getMinAthletes() + " VĐV");
+        }
+        if (count > tournament.getMaxAthletes()) {
+            throw new AppException(HttpStatus.BAD_REQUEST,
+                    "Tối đa " + tournament.getMaxAthletes() + " VĐV");
+        }
+
+        // Xóa roster cũ (nếu có) rồi tạo mới
+        List<TournamentRoster> existing = rosterRepository.findByTournamentAndClub(tournament, club);
+        rosterRepository.deleteAll(existing);
+
+        List<TournamentRoster> rosters = request.getPlayers().stream().map(p -> {
+            // Kiểm tra VĐV thuộc CLB và đã APPROVED
+            ClubMember member = clubMemberRepository
+                    .findByClubAndAthlete_IdAndJoinStatus(club, p.getAthleteId(), JoinStatus.APPROVED)
+                    .orElseThrow(() -> new AppException(HttpStatus.BAD_REQUEST,
+                            "VĐV #" + p.getAthleteId() + " không thuộc CLB hoặc chưa được duyệt"));
+
+            Athlete athlete = member.getAthlete();
+
+            return TournamentRoster.builder()
+                    .tournament(tournament)
+                    .club(club)
+                    .athlete(athlete)
+                    .jerseyNumber(p.getJerseyNumber() != null ? p.getJerseyNumber() : athlete.getPreferredNumber())
+                    .position(p.getPosition() != null ? p.getPosition() : athlete.getPreferredPosition())
+                    .role(p.getRole() != null ? RosterRole.valueOf(p.getRole()) : RosterRole.PLAYER)
+                    .status(RosterStatus.ELIGIBLE)
+                    .build();
+        }).collect(Collectors.toList());
+
+        rosterRepository.saveAll(rosters);
+
+        return getMyRoster(tournamentId);
     }
 }
