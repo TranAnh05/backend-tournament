@@ -1,14 +1,14 @@
 package com.example.tournament.service;
 
-import com.example.tournament.entity.Tournament;
-import com.example.tournament.entity.User;
-import com.example.tournament.entity.UserProfile;
-import com.example.tournament.entity.UserRole;
+import com.example.tournament.entity.*;
 import com.example.tournament.enums.RoleCode;
+import com.example.tournament.enums.UserStatus;
 import com.example.tournament.exception.custom.AppException;
+import com.example.tournament.payload.request.admin.AdminUserStatusUpdateRequest;
 import com.example.tournament.payload.response.admin.*;
 import com.example.tournament.repository.TournamentRepository;
 import com.example.tournament.repository.UserRepository;
+import com.example.tournament.repository.UserStatusLogRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -31,6 +32,7 @@ import java.util.stream.Collectors;
 public class AdminOrganizerService {
     private final UserRepository userRepository;
     private final TournamentRepository tournamentRepository;
+    private final UserStatusLogRepository userStatusLogRepository;
     private final ObjectMapper objectMapper;
 
     public PageResponse<AdminOrganizerResponse> getOrganizers(String search, String status, int page, int size) {
@@ -124,4 +126,70 @@ public class AdminOrganizerService {
                 .recentTournaments(recentTournamentDtos)
                 .build();
     }
+
+    @Transactional
+    public AdminUserStatusUpdateResponse updateOrganizerStatus(Long targetUserId, AdminUserStatusUpdateRequest request, Long adminId) {
+        User targetUser = userRepository.findOrganizerById(targetUserId)
+                .orElseThrow(() -> new AppException(HttpStatus.NOT_FOUND,
+                        "Không tìm thấy Ban tổ chức hoặc tài khoản không hợp lệ"));
+
+        User adminUser = userRepository.findById(adminId)
+                .orElseThrow(() -> new AppException(HttpStatus.UNAUTHORIZED,
+                        "Không xác định được danh tính Quản trị viên"));
+
+        UserStatus oldStatus = targetUser.getStatus();
+        UserStatus newStatus = request.getStatus();
+
+        if (oldStatus == newStatus) {
+            throw new AppException(HttpStatus.BAD_REQUEST, "Trạng thái mới không có sự thay đổi");
+        }
+
+        // XU LY TUY BIEN LY DO
+        String finalReason = request.getReason();
+
+        if (newStatus != UserStatus.ACTIVE) {
+            // TH1: KHi khoa - bat buoc co ly do
+            if (finalReason == null || finalReason.trim().isEmpty()) {
+                throw new AppException(HttpStatus.BAD_REQUEST, "Vui lòng nhập lý do khóa tài khoản");
+            }
+
+            if (oldStatus == UserStatus.ACTIVE) {
+                boolean hasActiveTournaments = tournamentRepository.hasActiveTournaments(targetUserId);
+                if (hasActiveTournaments) {
+                    throw new AppException(HttpStatus.BAD_REQUEST,
+                            "Không thể khóa tài khoản này. BTC đang quản lý các giải đấu đang chạy hoặc sắp mở. " +
+                                    "Vui lòng chuyển quyền quản lý giải đấu trước khi khóa.");
+                }
+            }
+        } else {
+            // TH2: Mo khoa - Nhap hoac khong nhap ly do
+            if (finalReason == null || finalReason.trim().isEmpty()) {
+                finalReason = "Khôi phục trạng thái hoạt động bình thường";
+            }
+        }
+
+        targetUser.setStatus(newStatus);
+        userRepository.save(targetUser);
+
+        UserStatusLog statusLog = UserStatusLog.builder()
+                .user(targetUser)
+                .changedBy(adminUser)
+                .oldStatus(oldStatus)
+                .newStatus(newStatus)
+                .reason(finalReason)
+                .build();
+        userStatusLogRepository.save(statusLog);
+
+        // 6. Đóng gói trả về
+        return AdminUserStatusUpdateResponse.builder()
+                .userId(targetUser.getId())
+                .fullName(targetUser.getFullName())
+                .oldStatus(oldStatus.name())
+                .newStatus(newStatus.name())
+                .reason(statusLog.getReason())
+                .changedByAdmin(adminUser.getFullName())
+                .changedAt(statusLog.getCreatedAt() != null ? statusLog.getCreatedAt() : LocalDateTime.now())
+                .build();
+    }
+
 }

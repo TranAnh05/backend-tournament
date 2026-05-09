@@ -48,5 +48,13 @@ public interface TournamentRepository extends JpaRepository<Tournament, Long> {
 
     // Lấy 5 giải đấu gần nhất do BTC này tạo
     List<Tournament> findTop5ByOrganizerIdOrderByCreatedAtDesc(Long organizerId);
+
+    /**
+     * Kiểm tra xem BTC có đang quản lý giải đấu nào chưa kết thúc không.
+     * Một giải đấu được coi là đang chạy nếu status KHÔNG PHẢI là 'FINISHED' hoặc 'CANCELED'.
+     */
+    @Query("SELECT COUNT(t) > 0 FROM Tournament t WHERE t.organizer.id = :organizerId " +
+            "AND t.status NOT IN ('FINISHED', 'CANCELED')")
+    boolean hasActiveTournaments(@Param("organizerId") Long organizerId);
     // ============================================================================
 }
