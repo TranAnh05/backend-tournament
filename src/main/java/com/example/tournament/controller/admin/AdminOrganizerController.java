@@ -1,16 +1,14 @@
 package com.example.tournament.controller.admin;
 
 import com.example.tournament.payload.response.ApiResponse;
+import com.example.tournament.payload.response.admin.AdminOrganizerDetailResponse;
 import com.example.tournament.payload.response.admin.AdminOrganizerResponse;
 import com.example.tournament.payload.response.admin.PageResponse;
 import com.example.tournament.service.AdminOrganizerService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/admin/organizers")
@@ -32,6 +30,20 @@ public class AdminOrganizerController {
                 .code(HttpStatus.OK.value())
                 .message("Lấy danh sách Ban tổ chức thành công")
                 .result(pageResponse)
+                .build();
+
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<AdminOrganizerDetailResponse>> getOrganizerDetails(@PathVariable Long id) {
+
+        AdminOrganizerDetailResponse detailResponse = organizerService.getOrganizerDetails(id);
+
+        ApiResponse<AdminOrganizerDetailResponse> response = ApiResponse.<AdminOrganizerDetailResponse>builder()
+                .code(HttpStatus.OK.value())
+                .message("Lấy chi tiết Ban tổ chức thành công")
+                .result(detailResponse)
                 .build();
 
         return ResponseEntity.ok(response);

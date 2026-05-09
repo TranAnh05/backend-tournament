@@ -31,5 +31,11 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Page<User> searchOrganizers(@Param("search") String search,
                                 @Param("status") String status,
                                 Pageable pageable);
+
+    @Query("SELECT u FROM User u " +
+            "JOIN u.userRoles ur " +
+            "JOIN ur.role r " +
+            "WHERE u.id = :id AND CAST(r.roleCode AS string) = 'ORGANIZER'")
+    Optional<User> findOrganizerById(@Param("id") Long id);
     // ===========================================================================
 }

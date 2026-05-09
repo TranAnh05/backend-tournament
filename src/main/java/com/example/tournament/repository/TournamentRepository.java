@@ -37,4 +37,16 @@ public interface TournamentRepository extends JpaRepository<Tournament, Long> {
     @Query("SELECT COUNT(t) > 0 FROM Tournament t WHERE t.venue.id = :venueId " +
             "AND t.status IN ('DRAFT', 'REGISTRATION_OPEN', 'ONGOING')")
     boolean hasActiveTournamentsAtVenue(@Param("venueId") Long venueId);
+
+    // Đếm tổng số giải đấu do BTC quản lý
+    long countByOrganizerId(Long organizerId);
+
+    // Đếm tổng số CÂU LẠC BỘ đã từng tham gia các giải của BTC này
+    @Query("SELECT COUNT(DISTINCT tr.club.id) FROM TournamentRegistration tr " +
+            "WHERE tr.tournament.organizer.id = :organizerId AND tr.status = 'APPROVED'")
+    long countDistinctClubsByOrganizerId(@Param("organizerId") Long organizerId);
+
+    // Lấy 5 giải đấu gần nhất do BTC này tạo
+    List<Tournament> findTop5ByOrganizerIdOrderByCreatedAtDesc(Long organizerId);
+    // ============================================================================
 }
