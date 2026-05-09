@@ -18,4 +18,10 @@ public class TournamentResponse {
     private String format;
     private String status;
 
+    private Float winPoints;
+    private Float drawPoints;
+    private Float lossPoints;
+    private Integer minAthletes;
+    private Integer maxAthletes;
+
 }

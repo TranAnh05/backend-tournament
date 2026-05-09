@@ -12,6 +12,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import com.example.tournament.payload.response.club.DisciplineResponse;
+import com.example.tournament.service.TournamentService;
 
 import java.util.List;
 
@@ -22,6 +24,7 @@ import java.util.List;
 public class ClubController {
 
     private final ClubService clubService;
+    private final TournamentService tournamentService;
 
     // Tạo hồ sơ CLB
     @PostMapping
@@ -137,6 +140,16 @@ public class ClubController {
                         .code(200)
                         .message("Phân công vai trò thành công")
                         .result(clubService.assignRole(memberId, request))
+                        .build()
+        );
+    }
+    @GetMapping("/me/disciplines")
+    public ResponseEntity<ApiResponse<List<DisciplineResponse>>> getMyDisciplines() {
+        return ResponseEntity.ok(
+                ApiResponse.<List<DisciplineResponse>>builder()
+                        .code(200)
+                        .message("Lấy danh sách kỷ luật thành công")
+                        .result(tournamentService.getMyDisciplines())
                         .build()
         );
     }

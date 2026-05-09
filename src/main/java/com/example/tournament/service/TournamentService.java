@@ -1,12 +1,17 @@
 package com.example.tournament.service;
 
 import com.example.tournament.entity.*;
+import com.example.tournament.enums.TournamentFormat;
+import com.example.tournament.enums.TournamentStatus;
 import com.example.tournament.exception.custom.AppException;
+import com.example.tournament.payload.request.Tournament.TournamentRequest;
+import com.example.tournament.payload.response.admin.SportResponse;
 import com.example.tournament.payload.response.club.DisciplineResponse;
 import com.example.tournament.payload.response.club.RegistrationResponse;
 import com.example.tournament.payload.response.club.TournamentResponseClub;
 import com.example.tournament.repository.*;
 import com.example.tournament.security.userdetail.CustomUserDetails;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
@@ -23,6 +28,8 @@ import com.example.tournament.payload.response.Tournament.TournamentResponse;
 import com.example.tournament.payload.response.Tournament.VenueResponse;
 import com.example.tournament.repository.TournamentRepository;
 
+
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -34,6 +41,8 @@ public class TournamentService {
     private final DisciplineRepository             disciplineRepository;
     private final TournamentRegistrationRepository registrationRepository;
     private final TournamentRepository             tournamentRepository;
+    private final SportRepository                   sportRepository;
+    private final VenueRepository       venueRepository;
 
     private Club getMyClub() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -101,7 +110,7 @@ public class TournamentService {
                         .build())
                 .collect(Collectors.toList());
     }
-  
+
   public Page<TournamentResponse> getAllTournaments(Pageable pageable, RoleCode role, String name) {
 
 
@@ -110,15 +119,22 @@ public class TournamentService {
         Page<Tournament> tournaments = tournamentRepository.findAllWithFilters(isAdminOrOrganizer,name, pageable);
 
         return tournaments.map(t -> TournamentResponse.builder()
-                .id(t.getId())
-                .name(t.getName())
-                .sportName(t.getSport().getName())
-                .venueName(t.getVenue().getName())
-                .startDate(t.getStartDate())
-                .endDate(t.getEndDate())
-                .status(t.getStatus().name())
-                .build());
-    }
+              .id(t.getId())
+              .name(t.getName())
+              .sportName(t.getSport().getName())
+              .venueName(t.getVenue().getName())
+              .startDate(t.getStartDate())
+              .endDate(t.getEndDate())
+              .winPoints(t.getWinPoints())
+              .drawPoints(t.getDrawPoints())
+              .lossPoints(t.getLossPoints())
+              .minAthletes(t.getMinAthletes())
+              .maxAthletes(t.getMaxAthletes())
+              .format(t.getFormat() != null ? t.getFormat().name() : null)
+              .status(t.getStatus().name())
+              .build());
+
+  }
     public TournamentDetailResponse getTournamentById(Long id) {
         Tournament t = tournamentRepository.findByIdWithDetails(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Tournament", "id", id));
@@ -153,6 +169,100 @@ public class TournamentService {
                         .courts(courtResponses)
                         .build())
                 .build();
+    }
+
+    @Transactional
+    public TournamentDetailResponse createTournament(TournamentRequest request) {
+        // 1. Tìm Sport và Venue (Sử dụng ResourceNotFoundException của Trung)
+        Sport sport = sportRepository.findById(request.getSportId())
+                .orElseThrow(() -> new ResourceNotFoundException("Sport", "id", request.getSportId()));
+
+        Venue venue = venueRepository.findById(request.getVenueId())
+                .orElseThrow(() -> new ResourceNotFoundException("Venue", "id", request.getVenueId()));
+
+        // 2. Chuyển đổi DTO sang Entity
+        Tournament tournament = new Tournament();
+        tournament.setName(request.getName());
+        tournament.setSport(sport);
+        tournament.setVenue(venue);
+        tournament.setStartDate(request.getStartDate());
+        tournament.setEndDate(request.getEndDate());
+        tournament.setMinAthletes(request.getMinAthletes());
+        tournament.setMaxAthletes(request.getMaxAthletes());
+        tournament.setWinPoints(request.getWinPoints());
+        tournament.setDrawPoints(request.getDrawPoints());
+        tournament.setLossPoints(request.getLostPoints());
+
+
+        // Ép kiểu Enum cho Format nếu cần
+        if (request.getFormat() != null) {
+            tournament.setFormat(TournamentFormat.valueOf(request.getFormat()));
+        }
+
+        // 3. THIẾT LẬP TRẠNG THÁI MẶC ĐỊNH
+        tournament.setStatus(TournamentStatus.DRAFT);
+
+        // 4. Lưu vào Database
+        Tournament savedTournament = tournamentRepository.save(tournament);
+
+        // 5. Trả về Response DTO (Tận dụng hàm mapToResponse đã viết ở chức năng Detail)
+        return mapToTournamentDetailResponse(savedTournament);
+    }
+    private TournamentDetailResponse mapToTournamentDetailResponse(Tournament t) {
+        // 1. Map danh sách sân (Courts) từ Venue
+        List<CourtResponse> courtResponses = new ArrayList<>();
+        if (t.getVenue() != null && t.getVenue().getCourts() != null) {
+            courtResponses = t.getVenue().getCourts().stream()
+                    .map(c -> CourtResponse.builder()
+                            .id(c.getId())
+                            .name(c.getCourtName())
+                            .build())
+                    .collect(Collectors.toList());
+        }
+
+        // 2. Map thông tin Venue
+        VenueResponse venueResponse = null;
+        if (t.getVenue() != null) {
+            venueResponse = VenueResponse.builder()
+                    .id(t.getVenue().getId())
+                    .name(t.getVenue().getName())
+                    .address(t.getVenue().getAddress())
+                    .courts(courtResponses)
+                    .build();
+        }
+
+        // 3. Map tổng thể TournamentDetailResponse
+        return TournamentDetailResponse.builder()
+                .id(t.getId())
+                .name(t.getName())
+                .sportName(t.getSport() != null ? t.getSport().getName() : null)
+                .startDate(t.getStartDate())
+                .endDate(t.getEndDate())
+                .winPoints(t.getWinPoints())
+                .drawPoints(t.getDrawPoints())
+                .lostPoints(t.getLossPoints())
+                .minAthletes(t.getMinAthletes())
+                .maxAthletes(t.getMaxAthletes())
+                .format(t.getFormat() != null ? t.getFormat().name() : null)
+                .status(t.getStatus() != null ? t.getStatus().name() : null)
+                .createdAt(t.getCreatedAt())
+                .updatedAt(t.getUpdatedAt())
+                .venue(venueResponse)
+                .build();
+    }
+
+
+    public List<SportResponse> getAllSportsForSelect() {
+        // Trả về List thuần túy thay vì Page để Frontend dễ dùng trong Select
+        return sportRepository.findAll().stream()
+                .map(sport -> SportResponse.builder()
+                        .id(sport.getId())
+                        .name(sport.getName())
+                        .build()) // Tuyệt đối không map trường rules vào đây nếu không cần thiết
+                .toList();
+    }
+    public List<Venue> getAllVenuesForSelect() {
+        return venueRepository.findAll();
     }
 }
 
