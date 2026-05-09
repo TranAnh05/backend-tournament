@@ -1,6 +1,7 @@
 package com.example.tournament.service;
 
 import com.example.tournament.entity.*;
+import com.example.tournament.enums.RegistrationStatus;
 import com.example.tournament.enums.TournamentFormat;
 import com.example.tournament.enums.TournamentStatus;
 import com.example.tournament.exception.custom.AppException;
@@ -27,7 +28,8 @@ import com.example.tournament.payload.response.Tournament.TournamentDetailRespon
 import com.example.tournament.payload.response.Tournament.TournamentResponse;
 import com.example.tournament.payload.response.Tournament.VenueResponse;
 import com.example.tournament.repository.TournamentRepository;
-
+import com.example.tournament.enums.RegistrationStatus;
+import com.example.tournament.entity.TournamentRegistration;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -109,6 +111,58 @@ public class TournamentService {
                         .reviewedAt(r.getReviewedAt() != null ? r.getReviewedAt().toString() : null)
                         .build())
                 .collect(Collectors.toList());
+    }
+
+    //kiet them phan nay
+    // POST /tournaments/{tournamentId}/register
+    public RegistrationResponse registerTournament(Long tournamentId, String homeKitColor, String awayKitColor, String financialProofUrl) {
+        Club club = getMyClub();
+
+        Tournament tournament = tournamentRepository.findById(tournamentId)
+                .orElseThrow(() -> new AppException(HttpStatus.NOT_FOUND, "Không tìm thấy giải đấu"));
+
+        // Kiểm tra đã đăng ký chưa
+        registrationRepository.findByTournamentIdAndClub(tournamentId, club).ifPresent(r -> {
+            throw new AppException(HttpStatus.CONFLICT, "CLB đã đăng ký giải đấu này rồi");
+        });
+
+        TournamentRegistration reg = TournamentRegistration.builder()
+                .tournament(tournament)
+                .club(club)
+                .status(RegistrationStatus.PENDING)
+                .homeKitColor(homeKitColor)
+                .awayKitColor(awayKitColor)
+                .financialProofUrl(financialProofUrl)
+                .build();
+
+        TournamentRegistration saved = registrationRepository.save(reg);
+
+        return RegistrationResponse.builder()
+                .id(saved.getId())
+                .tournamentId(tournament.getId())
+                .tournamentName(tournament.getName())
+                .clubId(club.getId())
+                .status(saved.getStatus().name())
+                .homeKitColor(saved.getHomeKitColor())
+                .awayKitColor(saved.getAwayKitColor())
+                .appliedAt(saved.getAppliedAt() != null ? saved.getAppliedAt().toString() : null)
+                .reviewedAt(null)
+                .build();
+    }
+
+    // DELETE /tournaments/{tournamentId}/withdraw
+    public void withdrawTournament(Long tournamentId) {
+        Club club = getMyClub();
+
+        TournamentRegistration reg = registrationRepository.findByTournamentIdAndClub(tournamentId, club)
+                .orElseThrow(() -> new AppException(HttpStatus.NOT_FOUND, "Không tìm thấy đơn đăng ký"));
+
+        if (reg.getStatus() == RegistrationStatus.WITHDRAWN) {
+            throw new AppException(HttpStatus.BAD_REQUEST, "Đã rút đơn trước đó rồi");
+        }
+
+        reg.setStatus(RegistrationStatus.WITHDRAWN);
+        registrationRepository.save(reg);
     }
 
   public Page<TournamentResponse> getAllTournaments(Pageable pageable, RoleCode role, String name) {

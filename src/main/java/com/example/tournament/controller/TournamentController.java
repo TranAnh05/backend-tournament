@@ -22,6 +22,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import com.example.tournament.payload.request.club.RegisterTournamentRequest;
+
 
 import java.nio.file.attribute.UserPrincipal;
 import java.util.List;
@@ -55,7 +57,6 @@ public class TournamentController {
                 .build();
     }
 
-    // GET /tournaments
     @GetMapping("/registrations/my")
     @PreAuthorize("hasRole('CLUB_MANAGER')")
     public ResponseEntity<ApiResponse<List<RegistrationResponse>>> getMyRegistrations() {
@@ -105,4 +106,38 @@ public class TournamentController {
                         .build()
         );
     }
+
+
+    //Club
+    // Đăng ký giải đấu
+    @PostMapping("/{tournamentId}/register")
+    @PreAuthorize("hasRole('CLUB_MANAGER')")
+    public ResponseEntity<ApiResponse<RegistrationResponse>> register(
+            @PathVariable Long tournamentId,
+            @RequestBody RegisterTournamentRequest request) {
+        return ResponseEntity.ok(
+                ApiResponse.<RegistrationResponse>builder()
+                        .code(200)
+                        .message("Đăng ký giải đấu thành công")
+                        .result(tournamentService.registerTournament(
+                                tournamentId,
+                                request.getHomeKitColor(),
+                                request.getAwayKitColor(),
+                                request.getFinancialProofUrl()))
+                        .build()
+        );
+    }
+    // Rút đơn khỏi giải đấu
+    @DeleteMapping("/{tournamentId}/withdraw")
+    @PreAuthorize("hasRole('CLUB_MANAGER')")
+    public ResponseEntity<ApiResponse<Void>> withdraw(@PathVariable Long tournamentId) {
+        tournamentService.withdrawTournament(tournamentId);
+        return ResponseEntity.ok(
+                ApiResponse.<Void>builder()
+                        .code(200)
+                        .message("Rút đơn thành công")
+                        .build()
+        );
+    }
+
 }
