@@ -9,6 +9,7 @@ import com.example.tournament.exception.custom.ResourceNotFoundException;
 import com.example.tournament.payload.request.club.*;
 import com.example.tournament.payload.response.club.ClubMemberResponse;
 import com.example.tournament.payload.response.club.ClubResponse;
+import com.example.tournament.payload.response.club.TournamentHistoryResponse;
 import com.example.tournament.repository.*;
 import com.example.tournament.security.userdetail.CustomUserDetails;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +18,10 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.example.tournament.payload.response.club.TournamentHistoryResponse;
+import com.example.tournament.repository.StandingRepository;
+import com.example.tournament.repository.TournamentRegistrationRepository;
+import java.util.stream.Collectors;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -30,6 +35,8 @@ public class ClubService {
     private final ClubMemberRepository  clubMemberRepository;
     private final AthleteRepository     athleteRepository;
     private final VenueRepository       venueRepository;
+    private final TournamentRegistrationRepository registrationRepository;
+    private final StandingRepository standingRepository;
 
     // ─── Helper: lấy User đang đăng nhập ────────────────────────
     private User getCurrentUser() {
@@ -83,7 +90,43 @@ public class ClubService {
                 .leftDate(cm.getLeftDate())
                 .build();
     }
-    // 1. Tạo hồ sơ CLB
+
+    private TournamentHistoryResponse toTournamentHistory(TournamentRegistration reg, Club club) {
+        Standing standing = standingRepository
+                .findByTournamentIdAndClub(reg.getTournament().getId(), club)
+                .orElse(null);
+
+        // Tính ranking trong bảng
+        Integer ranking = null;
+        if (standing != null) {
+            List<Standing> allStandings = standing.getGroupStage() != null
+                    ? standingRepository.findAll().stream()
+                    .filter(s -> s.getGroupStage() != null
+                            && s.getGroupStage().getId().equals(standing.getGroupStage().getId()))
+                    .sorted((a, b) -> b.getTotalPoints() - a.getTotalPoints())
+                    .collect(java.util.stream.Collectors.toList())
+                    : java.util.Collections.emptyList();
+            for (int i = 0; i < allStandings.size(); i++) {
+                if (allStandings.get(i).getClub().getId().equals(club.getId())) {
+                    ranking = i + 1;
+                    break;
+                }
+            }
+        }
+        return TournamentHistoryResponse.builder()
+                .tournamentId(reg.getTournament().getId())
+                .tournamentName(reg.getTournament().getName())
+                .season(reg.getTournament().getName())
+                .registrationStatus(reg.getStatus().name())
+                .matchesPlayed(standing != null ? standing.getMatchesPlayed() : 0)
+                .matchesWon(standing != null ? standing.getMatchesWon() : 0)
+                .matchesDrawn(standing != null ? standing.getMatchesDrawn() : 0)
+                .matchesLost(standing != null ? standing.getMatchesLost() : 0)
+                .totalPoints(standing != null ? standing.getTotalPoints() : 0)
+                .ranking(ranking)
+                .build();
+    }
+        // 1. Tạo hồ sơ CLB
     @Transactional
     public ClubResponse createClub(CreateClubRequest request) {
         User manager = getCurrentUser();
@@ -118,7 +161,38 @@ public class ClubService {
     }
     // 2. Xem thông tin CLB
     public ClubResponse getMyClubInfo() {
-        return toClubResponse(getMyClub());
+        Club club = getMyClub();
+
+        // Lấy danh sách thành viên APPROVED
+        List<ClubMemberResponse> members = clubMemberRepository
+                .findByClubAndJoinStatus(club, JoinStatus.APPROVED)
+                .stream()
+                .map(this::toMemberResponse)
+                .collect(Collectors.toList());
+
+        // Lấy lịch sử giải đấu
+        List<TournamentHistoryResponse> history = registrationRepository
+                .findByClub(club)
+                .stream()
+                .map(reg -> toTournamentHistory(reg, club))
+                .collect(Collectors.toList());
+
+        return ClubResponse.builder()
+                .id(club.getId())
+                .name(club.getName())
+                .shortName(club.getShortName())
+                .logoUrl(club.getLogoUrl())
+                .headquarters(club.getHeadquarters())
+                .homeVenueId(club.getHomeVenue() != null ? club.getHomeVenue().getId() : null)
+                .homeVenueName(club.getHomeVenue() != null ? club.getHomeVenue().getName() : null)
+                .contactEmail(club.getContactEmail())
+                .contactPhone(club.getContactPhone())
+                .status(club.getStatus().name())
+                .managerName(club.getManager().getFullName())
+                .members(members)
+                .tournamentHistory(history)
+                .build();
+
     }
     // 3. Cập nhật hồ sơ CLB
     @Transactional

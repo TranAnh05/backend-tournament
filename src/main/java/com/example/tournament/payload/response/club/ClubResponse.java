@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.List;
+
 @Getter
 @Setter
 @Builder
@@ -20,4 +22,7 @@ public class ClubResponse {
     private String contactPhone;
     private String status;
     private String managerName;
+
+    private List<ClubMemberResponse> members;
+    private List<TournamentHistoryResponse> tournamentHistory;
 }
