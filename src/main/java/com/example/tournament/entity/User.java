@@ -64,4 +64,12 @@ public class User {
     @OneToMany(mappedBy = "organizer")
     @Builder.Default
     private List<Tournament> organizedTournaments = new ArrayList<>();
+
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<UserStatusLog> statusHistories = new ArrayList<>();
+
+    @OneToMany(mappedBy = "changedBy")
+    @Builder.Default
+    private List<UserStatusLog> statusChangesMade = new ArrayList<>();
 }
