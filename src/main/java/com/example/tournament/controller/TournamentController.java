@@ -155,4 +155,18 @@ public class TournamentController {
         );
     }
 
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ORGANIZER') or hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Void>> deleteTournament(@PathVariable Long id) {
+
+        tournamentService.deleteTournament(id);
+
+        return ResponseEntity.ok(
+                ApiResponse.<Void>builder()
+                        .code(200)
+                        .message("Xóa giải đấu thành công")
+                        .build()
+        );
+    }
+
 }

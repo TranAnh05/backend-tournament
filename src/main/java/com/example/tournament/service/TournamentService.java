@@ -371,6 +371,28 @@ public class TournamentService {
         // 7. Trả về Response Detail (Sử dụng hàm mapper đã có sẵn để tránh lỗi lặp JSON)
         return mapToTournamentDetailResponse(savedTournament);
     }
+    @Transactional
+    public void deleteTournament(Long id) {
+        // 1. Lấy giải đấu lên (nhờ @SQLRestriction, hàm này sẽ tự động báo Not Found nếu giải đã bị xóa trước đó)
+        Tournament tournament = tournamentRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Tournament", "id", id));
 
+        // 2. Kiểm tra nghiệp vụ: Chỉ cho phép xóa nếu là DRAFT hoặc COMPLETED
+        if (tournament.getStatus() != TournamentStatus.DRAFT &&
+                tournament.getStatus() != TournamentStatus.FINISHED &&
+                    tournament.getStatus() != TournamentStatus.CANCELED) {
+            throw new AppException(HttpStatus.BAD_REQUEST, "Chỉ có thể xóa giải đấu ở trạng thái Bản nháp hoặc Đã kết thúc.");
+        }
+
+        // 3. Thực hiện cập nhật cờ Xóa mềm (Manual Soft Delete)
+        tournament.setIsDeleted(true);
+
+        // 💡 Tương lai mở rộng: Bạn có thể dễ dàng thêm logic ở đây
+        // tournament.setDeletedAt(LocalDateTime.now());
+        // tournament.setDeletedBy(SecurityContextHolder.getContext().getAuthentication().getName());
+
+        // 4. Lưu lại sự thay đổi vào Database
+        tournamentRepository.save(tournament);
+    }
 }
 
