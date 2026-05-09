@@ -1,10 +1,12 @@
 package com.example.tournament.controller;
 
 import com.example.tournament.entity.Tournament;
+import com.example.tournament.entity.Venue;
 import com.example.tournament.enums.RoleCode;
 import com.example.tournament.payload.response.ApiResponse;
 import com.example.tournament.payload.response.Tournament.TournamentDetailResponse;
 import com.example.tournament.payload.response.Tournament.TournamentResponse;
+import com.example.tournament.payload.response.admin.SportResponse;
 import com.example.tournament.payload.response.club.DisciplineResponse;
 import com.example.tournament.payload.response.club.RegistrationResponse;
 import com.example.tournament.payload.response.club.TournamentResponseClub;
@@ -75,6 +77,31 @@ public class TournamentController {
                         .code(200)
                         .message("Lay danh sach ky luat thanh cong")
                         .result(tournamentService.getMyDisciplines())
+                        .build()
+        );
+    }
+
+    @GetMapping("/sports/all")
+    public ResponseEntity<ApiResponse<List<SportResponse>>> getAllSports() {
+        List<SportResponse> sports = tournamentService.getAllSportsForSelect();
+        return ResponseEntity.ok(
+                ApiResponse.<List<SportResponse>>builder()
+                        .code(200)
+                        .message("Lấy danh sách môn thi đấu thành công")
+                        .result(sports)
+                        .build()
+        );
+    }
+
+    @GetMapping("/venues/all")
+    public ResponseEntity<ApiResponse<List<Venue>>> getAllVenue(){
+
+        List<Venue> venue = tournamentService.getAllVenuesForSelect();
+        return ResponseEntity.ok(
+                ApiResponse.<List<Venue>>builder()
+                        .code(200)
+                        .message("lấy danh sách thành công")
+                        .result(venue)
                         .build()
         );
     }
