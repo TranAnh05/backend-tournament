@@ -60,4 +60,8 @@ public class User {
     @OneToMany(mappedBy = "referee", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<MatchReferee> refereedMatches = new ArrayList<>();
+
+    @OneToMany(mappedBy = "organizer")
+    @Builder.Default
+    private List<Tournament> organizedTournaments = new ArrayList<>();
 }

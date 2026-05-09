@@ -8,6 +8,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 
 @Entity
@@ -31,7 +32,7 @@ public class UserProfile {
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "JSON")
-    private Map<String, Object> achievements;
+    private List<Map<String, Object>> achievements;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)

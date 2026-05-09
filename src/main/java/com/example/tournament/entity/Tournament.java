@@ -28,6 +28,10 @@ public class Tournament {
     private String name;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "organizer_id", nullable = false)
+    private User organizer;
+
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "sport_id", nullable = false)
     private Sport sport;
 
