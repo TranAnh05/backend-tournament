@@ -35,4 +35,6 @@ public interface ClubMemberRepository extends JpaRepository<ClubMember, Long> {
     // Kiểm tra số áo đã tồn tại trong CLB chưa
     @Query("SELECT COUNT(cm) > 0 FROM ClubMember cm WHERE cm.club = :club AND cm.joinStatus = 'APPROVED' AND cm.athlete.preferredNumber = :number AND cm.athlete.id != :excludeAthleteId")
     boolean existsJerseyNumberInClub(@Param("club") Club club, @Param("number") Integer number, @Param("excludeAthleteId") Long excludeAthleteId);
+
+    Optional<ClubMember> findByClubAndAthlete_IdAndJoinStatus(Club club, Long athleteId, JoinStatus joinStatus);
 }

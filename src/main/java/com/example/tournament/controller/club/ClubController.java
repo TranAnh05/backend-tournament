@@ -5,6 +5,7 @@ import com.example.tournament.payload.request.club.*;
 import com.example.tournament.payload.response.ApiResponse;
 import com.example.tournament.payload.response.club.ClubMemberResponse;
 import com.example.tournament.payload.response.club.ClubResponse;
+import com.example.tournament.payload.response.club.RosterResponse;
 import com.example.tournament.service.ClubService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -152,5 +153,29 @@ public class ClubController {
                         .result(tournamentService.getMyDisciplines())
                         .build()
         );
+    }
+
+    // Lấy roster hiện tại
+    @GetMapping("/tournaments/{tournamentId}/roster")
+    @PreAuthorize("hasRole('CLUB_MANAGER')")
+    public ResponseEntity<ApiResponse<RosterResponse>> getMyRoster(@PathVariable Long tournamentId) {
+        return ResponseEntity.ok(ApiResponse.<RosterResponse>builder()
+                .code(200)
+                .message("Lấy danh sách thi đấu thành công")
+                .result(clubService.getMyRoster(tournamentId))
+                .build());
+    }
+
+    // Chốt danh sách thi đấu
+    @PostMapping("/tournaments/{tournamentId}/roster")
+    @PreAuthorize("hasRole('CLUB_MANAGER')")
+    public ResponseEntity<ApiResponse<RosterResponse>> submitRoster(
+            @PathVariable Long tournamentId,
+            @RequestBody RosterRequest request) {
+        return ResponseEntity.ok(ApiResponse.<RosterResponse>builder()
+                .code(200)
+                .message("Chốt danh sách thi đấu thành công")
+                .result(clubService.submitRoster(tournamentId, request))
+                .build());
     }
 }
