@@ -14,7 +14,7 @@ public class TournamentDetailResponse {
     private Long id;
     private String name;
     private String sportName;
-    private VenueResponse venue; // Bọc toàn bộ thông tin địa điểm và sân
+    private VenueCourtResponse venue; // Bọc toàn bộ thông tin địa điểm và sân
     private LocalDate startDate;
     private LocalDate endDate;
     private Float winPoints;

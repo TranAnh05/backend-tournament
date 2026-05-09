@@ -3,15 +3,18 @@ package com.example.tournament.controller;
 import com.example.tournament.entity.Tournament;
 import com.example.tournament.entity.Venue;
 import com.example.tournament.enums.RoleCode;
+import com.example.tournament.payload.request.Tournament.TournamentRequest;
 import com.example.tournament.payload.response.ApiResponse;
 import com.example.tournament.payload.response.Tournament.TournamentDetailResponse;
 import com.example.tournament.payload.response.Tournament.TournamentResponse;
 import com.example.tournament.payload.response.admin.SportResponse;
+import com.example.tournament.payload.response.admin.VenueResponse;
 import com.example.tournament.payload.response.club.DisciplineResponse;
 import com.example.tournament.payload.response.club.RegistrationResponse;
 import com.example.tournament.payload.response.club.TournamentResponseClub;
 import com.example.tournament.security.jwt.JwtTokenProvider;
 import com.example.tournament.service.TournamentService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -94,14 +97,26 @@ public class TournamentController {
     }
 
     @GetMapping("/venues/all")
-    public ResponseEntity<ApiResponse<List<Venue>>> getAllVenue(){
+    public ResponseEntity<ApiResponse<List<VenueResponse>>> getAllVenue(){
 
-        List<Venue> venue = tournamentService.getAllVenuesForSelect();
+       List<VenueResponse> venues = tournamentService.getAllVenuesForSelect();
         return ResponseEntity.ok(
-                ApiResponse.<List<Venue>>builder()
+                ApiResponse.<List<VenueResponse>>builder()
                         .code(200)
                         .message("lấy danh sách thành công")
-                        .result(venue)
+                        .result(venues)
+                        .build()
+        );
+    }
+
+    @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ORGANIZER')")
+    public ResponseEntity<ApiResponse<TournamentDetailResponse>> update(@PathVariable Long id,
+                                                                        @Valid @RequestBody TournamentRequest request) {
+
+        return ResponseEntity.ok(
+                ApiResponse.<TournamentDetailResponse>builder()
+                        .result(tournamentService.updateTournament(id, request))
                         .build()
         );
     }
