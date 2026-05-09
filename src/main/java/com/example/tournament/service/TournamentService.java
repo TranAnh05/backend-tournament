@@ -7,6 +7,7 @@ import com.example.tournament.enums.TournamentStatus;
 import com.example.tournament.exception.custom.AppException;
 import com.example.tournament.payload.request.Tournament.TournamentRequest;
 import com.example.tournament.payload.response.admin.SportResponse;
+import com.example.tournament.payload.response.admin.VenueResponse;
 import com.example.tournament.payload.response.club.DisciplineResponse;
 import com.example.tournament.payload.response.club.RegistrationResponse;
 import com.example.tournament.payload.response.club.TournamentResponseClub;
@@ -26,7 +27,7 @@ import com.example.tournament.exception.custom.ResourceNotFoundException;
 import com.example.tournament.payload.response.Tournament.CourtResponse;
 import com.example.tournament.payload.response.Tournament.TournamentDetailResponse;
 import com.example.tournament.payload.response.Tournament.TournamentResponse;
-import com.example.tournament.payload.response.Tournament.VenueResponse;
+import com.example.tournament.payload.response.Tournament.VenueCourtResponse;
 import com.example.tournament.repository.TournamentRepository;
 import com.example.tournament.enums.RegistrationStatus;
 import com.example.tournament.entity.TournamentRegistration;
@@ -212,11 +213,12 @@ public class TournamentService {
                 .drawPoints(t.getDrawPoints())
                 .lostPoints(t.getLossPoints())
                 .minAthletes(t.getMinAthletes())
+                .maxAthletes(t.getMaxAthletes())
                 .format(t.getFormat() != null ? t.getFormat().name() : null)
                 .status(t.getStatus().name())
                 .createdAt(t.getCreatedAt())
                 .updatedAt(t.getUpdatedAt())
-                .venue(VenueResponse.builder()
+                .venue(VenueCourtResponse.builder()
                         .id(t.getVenue().getId())
                         .name(t.getVenue().getName())
                         .address(t.getVenue().getAddress())
@@ -275,9 +277,9 @@ public class TournamentService {
         }
 
         // 2. Map thông tin Venue
-        VenueResponse venueResponse = null;
+        VenueCourtResponse venueResponse = null;
         if (t.getVenue() != null) {
-            venueResponse = VenueResponse.builder()
+            venueResponse = VenueCourtResponse.builder()
                     .id(t.getVenue().getId())
                     .name(t.getVenue().getName())
                     .address(t.getVenue().getAddress())
@@ -315,8 +317,60 @@ public class TournamentService {
                         .build()) // Tuyệt đối không map trường rules vào đây nếu không cần thiết
                 .toList();
     }
-    public List<Venue> getAllVenuesForSelect() {
-        return venueRepository.findAll();
+    public List<VenueResponse> getAllVenuesForSelect() {
+        return venueRepository.findAll().stream()
+                .map(venues -> VenueResponse.builder()
+                        .id(venues.getId())
+                        .name(venues.getName())
+                        .build())
+                .collect(Collectors.toList());
     }
+
+    // Sửa đổi kiểu trả về thành TournamentDetailResponse để đồng bộ với hàm Mapper
+    @Transactional
+    public TournamentDetailResponse updateTournament(Long id, TournamentRequest request) {
+        // 1. Tìm giải đấu hiện tại
+        Tournament t = tournamentRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Tournament", "id", id));
+
+        // 2. Chỉ cho phép sửa nếu giải đấu đang ở trạng thái nháp (DRAFT)
+        if (!t.getStatus().equals(TournamentStatus.DRAFT )) {
+            throw new AppException(HttpStatus.BAD_REQUEST, "Chỉ có thể sửa giải đấu khi ở trạng thái DRAFT");
+        }
+
+        // 3. Kiểm tra logic ngày tháng
+        if (request.getStartDate().isAfter(request.getEndDate())) {
+            throw new AppException(HttpStatus.BAD_REQUEST, "Ngày bắt đầu không thể sau ngày kết thúc");
+        }
+
+        // 4. Tìm Sport & Venue mới từ request
+        Sport sport = sportRepository.findById(request.getSportId())
+                .orElseThrow(() -> new ResourceNotFoundException("Sport", "id", request.getSportId()));
+        Venue venue = venueRepository.findById(request.getVenueId())
+                .orElseThrow(() -> new ResourceNotFoundException("Venue", "id", request.getVenueId()));
+
+        // 5. Cập nhật dữ liệu vào Entity
+        t.setName(request.getName());
+        t.setSport(sport);
+        t.setVenue(venue);
+        t.setStartDate(request.getStartDate());
+        t.setEndDate(request.getEndDate());
+        t.setMinAthletes(request.getMinAthletes());
+        t.setMaxAthletes(request.getMaxAthletes());
+        t.setWinPoints(request.getWinPoints());
+        t.setDrawPoints(request.getDrawPoints());
+        t.setLossPoints(request.getLostPoints());
+
+        if (request.getFormat() != null) {
+            t.setFormat(TournamentFormat.valueOf(request.getFormat()));
+        }
+
+        // 6. Lưu vào Database
+        Tournament savedTournament = tournamentRepository.save(t);
+
+        // 7. Trả về Response Detail (Sử dụng hàm mapper đã có sẵn để tránh lỗi lặp JSON)
+        return mapToTournamentDetailResponse(savedTournament);
+    }
+
 }
 
