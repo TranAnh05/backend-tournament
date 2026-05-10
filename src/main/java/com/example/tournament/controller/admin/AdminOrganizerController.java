@@ -61,7 +61,7 @@ public class AdminOrganizerController {
             @PathVariable Long id,
             @Valid @RequestBody AdminUserStatusUpdateRequest request) {
 
-            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
         Long currentAdminId = userDetails.getUser().getId();
 
