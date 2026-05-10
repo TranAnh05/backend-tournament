@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface MatchRepository extends JpaRepository<Match, Long> {
@@ -48,4 +49,16 @@ public interface MatchRepository extends JpaRepository<Match, Long> {
     // Đếm số trận đã đá xong (FINISHED)
     long countByStatusAndUpdatedAtBetween(MatchStatus status, LocalDateTime start, LocalDateTime end);
     // ==========================================================
+
+    // REFEREE
+    @Query("SELECT m FROM Match m " +
+            "JOIN FETCH m.tournament t " +
+            "JOIN FETCH t.sport s " +
+            "LEFT JOIN FETCH m.homeClub " +
+            "LEFT JOIN FETCH m.awayClub " +
+            "LEFT JOIN FETCH m.court c " +
+            "LEFT JOIN FETCH c.venue " +
+            "WHERE m.id = :matchId")
+    Optional<Match> findMatchDetailById(@Param("matchId") Long matchId);
+    // ============================================================
 }
