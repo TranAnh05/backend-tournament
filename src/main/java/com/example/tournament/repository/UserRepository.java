@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 @Repository
@@ -37,5 +38,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
             "JOIN ur.role r " +
             "WHERE u.id = :id AND CAST(r.roleCode AS string) = 'ORGANIZER'")
     Optional<User> findOrganizerById(@Param("id") Long id);
+
+    long countByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
     // ===========================================================================
 }
