@@ -2,6 +2,8 @@ package com.example.tournament.repository;
 
 import com.example.tournament.entity.Tournament;
 import com.example.tournament.enums.TournamentStatus;
+import com.example.tournament.payload.response.admin.AdminActivityTrendProjection;
+import com.example.tournament.payload.response.admin.AdminChartDataProjection;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -9,6 +11,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.List;
 
@@ -56,5 +59,37 @@ public interface TournamentRepository extends JpaRepository<Tournament, Long> {
     @Query("SELECT COUNT(t) > 0 FROM Tournament t WHERE t.organizer.id = :organizerId " +
             "AND t.status NOT IN ('FINISHED', 'CANCELED')")
     boolean hasActiveTournaments(@Param("organizerId") Long organizerId);
+
+    // Biểu đồ Tròn: Tỷ lệ môn thể thao
+    @Query("SELECT s.name AS label, COUNT(t.id) AS value " +
+            "FROM Tournament t JOIN t.sport s " +
+            "WHERE t.createdAt >= :startDate AND t.createdAt <= :endDate " +
+            "GROUP BY s.id")
+    List<AdminChartDataProjection> countTournamentsBySport(
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate);
+
+    // Biểu đồ Cột ngang: Mức độ sử dụng địa điểm
+    @Query("SELECT v.name AS label, COUNT(t.id) AS value " +
+            "FROM Tournament t JOIN t.venue v " +
+            "WHERE t.createdAt >= :startDate AND t.createdAt <= :endDate " +
+            "GROUP BY v.id " +
+            "ORDER BY value DESC")
+    List<AdminChartDataProjection> countVenueUsage(
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate);
+
+    // Biểu đồ Đường: Xu hướng tạo giải đấu theo tháng (Sử dụng Native Query cho MySQL)
+    @Query(value = "SELECT CONCAT('Tháng ', MONTH(MIN(created_at))) AS timeLabel, COUNT(id) AS newTournaments " +
+            "FROM tournaments " +
+            "WHERE created_at >= :startDate AND created_at <= :endDate " +
+            "GROUP BY YEAR(created_at), MONTH(created_at) " +
+            "ORDER BY YEAR(created_at) ASC, MONTH(created_at) ASC",
+            nativeQuery = true)
+    List<AdminActivityTrendProjection> countActivityTrends(
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate);
+
+    long countByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
     // ============================================================================
 }
