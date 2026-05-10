@@ -20,6 +20,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -110,6 +111,24 @@ public class TournamentController {
         );
     }
 
+    @PostMapping
+    // Chỉ Ban tổ chức mới có quyền tạo
+    @PreAuthorize("hasRole('ORGANIZER')")
+    public ResponseEntity<ApiResponse<TournamentDetailResponse>> createTournament(
+            @Valid @RequestBody TournamentRequest request) {
+
+        // Gọi service xử lý logic tạo mới
+        TournamentDetailResponse response = tournamentService.createTournament(request);
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(
+                ApiResponse.<TournamentDetailResponse>builder()
+                        .code(200)
+                        .message("Tạo giải đấu thành công")
+                        .result(response)
+                        .build()
+        );
+    }
+
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ORGANIZER')")
     public ResponseEntity<ApiResponse<TournamentDetailResponse>> update(@PathVariable Long id,
@@ -151,6 +170,20 @@ public class TournamentController {
                 ApiResponse.<Void>builder()
                         .code(200)
                         .message("Rút đơn thành công")
+                        .build()
+        );
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ORGANIZER') or hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Void>> deleteTournament(@PathVariable Long id) {
+
+        tournamentService.deleteTournament(id);
+
+        return ResponseEntity.ok(
+                ApiResponse.<Void>builder()
+                        .code(200)
+                        .message("Xóa giải đấu thành công")
                         .build()
         );
     }

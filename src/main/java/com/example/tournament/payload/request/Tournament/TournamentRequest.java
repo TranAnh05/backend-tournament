@@ -24,4 +24,6 @@ public class TournamentRequest {
     private Float drawPoints = 1.0f;
     private Float lostPoints = 0.0f;
     private String format;
+
+    private String Organizer ;
 }
