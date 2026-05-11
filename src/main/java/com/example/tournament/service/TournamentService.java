@@ -308,6 +308,7 @@ public class TournamentService {
                 .createdAt(t.getCreatedAt())
                 .updatedAt(t.getUpdatedAt())
                 .venue(venueResponse)
+                .organizerName(t.getOrganizer() != null ? t.getOrganizer().getFullName() : "N/A")
                 .build();
     }
 
@@ -407,6 +408,90 @@ public class TournamentService {
 
         CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
         return userDetails.getUser();
+    }
+
+    @Transactional
+    public TournamentDetailResponse toggleRegistrationStatus(Long id) {
+        // 1. Lấy thông tin người dùng đang đăng nhập
+        User currentUser = getCurrentUser(); // Hàm chúng ta đã viết ở bước trước
+
+        // 2. Tìm giải đấu
+        Tournament tournament = tournamentRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Tournament", "id", id));
+
+        // cập nhật lại người thao tác.
+        tournament.setOrganizer(currentUser);
+
+        TournamentStatus currentStatus = tournament.getStatus();
+
+        // 4. KIỂM TRA TRẠNG THÁI HỢP LỆ (State Machine Logic)
+        if (currentStatus == TournamentStatus.DRAFT || currentStatus == TournamentStatus.REGISTRATION_CLOSE) {
+            // Chuyển từ Nháp -> Mở đăng ký
+            tournament.setStatus(TournamentStatus.REGISTRATION_OPEN);
+        } else if (currentStatus == TournamentStatus.REGISTRATION_OPEN) {
+            // Chuyển từ Mở đăng ký -> Đóng đăng ký
+            tournament.setStatus(TournamentStatus.REGISTRATION_CLOSE);
+        }
+        else {
+            // Chặn các trạng thái: CANCELED, ONGOING, COMPLETED
+            throw new AppException(HttpStatus.BAD_REQUEST,
+                    "Không thể thay đổi trạng thái đăng ký khi giải đấu đang ở trạng thái: " + currentStatus);
+        }
+
+        // 5. Lưu lại (Hibernate sẽ tự động cập nhật thời gian updatedAt nếu bạn có cấu hình Audit)
+        Tournament savedTournament = tournamentRepository.save(tournament);
+
+        // Trả về Response chứa thông tin người thực hiện (Organizer)
+        return mapToTournamentDetailResponse(savedTournament);
+    }
+
+    @Transactional
+    public TournamentDetailResponse startTournament(Long id) {
+        User currentUser = getCurrentUser();
+
+        Tournament tournament = tournamentRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Tournament", "id", id));
+
+        // Kiểm tra State Machine: Chỉ được bắt đầu khi đã đóng đăng ký
+        if (tournament.getStatus() != TournamentStatus.REGISTRATION_CLOSE) {
+            throw new AppException(HttpStatus.BAD_REQUEST,
+                    "Chỉ có thể bắt đầu giải đấu khi cổng đăng ký đã được ĐÓNG. Trạng thái hiện tại: " + tournament.getStatus());
+        }
+
+        // Chuyển trạng thái sang Đang diễn ra
+        tournament.setStatus(TournamentStatus.ONGOING);
+
+        // Ghi nhận người thực hiện thao tác
+        tournament.setOrganizer(currentUser);
+
+        Tournament savedTournament = tournamentRepository.save(tournament);
+        return mapToTournamentDetailResponse(savedTournament);
+    }
+
+    /**
+     * Nghiệp vụ: Kết thúc giải đấu (Chuyển sang COMPLETED)
+     */
+    @Transactional
+    public TournamentDetailResponse finishTournament(Long id) {
+        User currentUser = getCurrentUser();
+
+        Tournament tournament = tournamentRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Tournament", "id", id));
+
+        // Kiểm tra State Machine: Chỉ được kết thúc khi giải đang diễn ra
+        if (tournament.getStatus() != TournamentStatus.ONGOING) {
+            throw new AppException(HttpStatus.BAD_REQUEST,
+                    "Chỉ có thể kết thúc giải đấu đang diễn ra (ONGOING). Trạng thái hiện tại: " + tournament.getStatus());
+        }
+
+        // Chuyển trạng thái sang Đã kết thúc
+        tournament.setStatus(TournamentStatus.FINISHED);
+
+        // Ghi nhận người thực hiện thao tác
+        tournament.setOrganizer(currentUser);
+
+        Tournament savedTournament = tournamentRepository.save(tournament);
+        return mapToTournamentDetailResponse(savedTournament);
     }
 }
 
