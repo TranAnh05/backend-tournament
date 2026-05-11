@@ -28,5 +28,7 @@ public class TournamentDetailResponse {
     private Integer minAthletes;
     private Integer maxAthletes;
 
+    private String organizerName;
+
 
 }

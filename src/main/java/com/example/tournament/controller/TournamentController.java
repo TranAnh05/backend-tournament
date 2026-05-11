@@ -188,4 +188,55 @@ public class TournamentController {
         );
     }
 
+    @PatchMapping("/{id}/registration")
+    @PreAuthorize("hasRole('ORGANIZER')")
+    public ResponseEntity<ApiResponse<TournamentDetailResponse>> toggleRegistration(
+            @PathVariable Long id) {
+
+        TournamentDetailResponse response = tournamentService.toggleRegistrationStatus(id);
+
+        String message = response.getStatus().equals("REGISTRATION_OPEN") ? "Đã mở cổng đăng ký" : "Đã đóng cổng đăng ký";
+
+        return ResponseEntity.ok(
+                ApiResponse.<TournamentDetailResponse>builder()
+                        .code(200)
+                        .message(message)
+                        .result(response)
+                        .build()
+        );
+    }
+
+    @PatchMapping("/{id}/start")
+    @PreAuthorize("hasRole('ORGANIZER')")
+    public ResponseEntity<ApiResponse<TournamentDetailResponse>> startTournament(@PathVariable Long id) {
+
+        TournamentDetailResponse response = tournamentService.startTournament(id);
+
+        return ResponseEntity.ok(
+                ApiResponse.<TournamentDetailResponse>builder()
+                        .code(200)
+                        .message("Giải đấu đã chính thức bắt đầu!")
+                        .result(response)
+                        .build()
+        );
+    }
+
+    /**
+     * API Kết thúc giải đấu
+     */
+    @PatchMapping("/{id}/finish")
+    @PreAuthorize("hasRole('ORGANIZER')")
+    public ResponseEntity<ApiResponse<TournamentDetailResponse>> finishTournament(@PathVariable Long id) {
+
+        TournamentDetailResponse response = tournamentService.finishTournament(id);
+
+        return ResponseEntity.ok(
+                ApiResponse.<TournamentDetailResponse>builder()
+                        .code(200)
+                        .message("Giải đấu đã kết thúc thành công!")
+                        .result(response)
+                        .build()
+        );
+    }
+
 }
