@@ -3,6 +3,7 @@ package com.example.tournament.controller.Tournament;
 
 import com.example.tournament.enums.RegistrationStatus;
 import com.example.tournament.payload.response.ApiResponse;
+import com.example.tournament.payload.response.Tournament.RegistrationDetailResponse;
 import com.example.tournament.payload.response.Tournament.TournamentRegistrationResponse;
 import com.example.tournament.service.TournamentRegistrationService;
 import lombok.RequiredArgsConstructor;
@@ -40,6 +41,23 @@ public class TournamentRegistrationController {
                 ApiResponse.<Page<TournamentRegistrationResponse>>builder()
                         .code(200)
                         .message("Lấy danh sách đội đăng ký thành công")
+                        .result(result)
+                        .build()
+        );
+    }
+
+    @GetMapping("/{regId}")
+    @PreAuthorize("hasRole('ORGANIZER')")
+    public ResponseEntity<ApiResponse<RegistrationDetailResponse>> getRegistrationDetail(
+            @PathVariable Long tournamentId,
+            @PathVariable Long regId) {
+
+        RegistrationDetailResponse result = registrationService.getRegistrationDetail(tournamentId, regId);
+
+        return ResponseEntity.ok(
+                ApiResponse.<RegistrationDetailResponse>builder()
+                        .code(200)
+                        .message("Lấy chi tiết đơn đăng ký thành công")
                         .result(result)
                         .build()
         );
