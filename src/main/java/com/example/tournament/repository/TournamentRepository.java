@@ -92,4 +92,6 @@ public interface TournamentRepository extends JpaRepository<Tournament, Long> {
 
     long countByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
     // ============================================================================
+
+    List<Tournament> findByStatus(TournamentStatus status);
 }

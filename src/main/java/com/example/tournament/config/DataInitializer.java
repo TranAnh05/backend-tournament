@@ -55,7 +55,7 @@ public class DataInitializer implements CommandLineRunner {
 
     private void initAdmin() {
         Role adminRole = roleRepository.findByRoleCode(RoleCode.ADMIN).orElseThrow();
-        createUserIfNotFound("admin@tournament.com", "System Admin", "Admin@123", adminRole);
+        createUserIfNotFound("admin@tournament.com", "System Admin", "my", adminRole);
     }
 
     private void initOrganizers() {

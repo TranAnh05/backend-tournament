@@ -6,6 +6,7 @@ import com.example.tournament.enums.TournamentFormat;
 import com.example.tournament.enums.TournamentStatus;
 import com.example.tournament.exception.custom.AppException;
 import com.example.tournament.payload.request.Tournament.TournamentRequest;
+import com.example.tournament.payload.response.Tournament.*;
 import com.example.tournament.payload.response.admin.SportResponse;
 import com.example.tournament.payload.response.admin.VenueResponse;
 import com.example.tournament.payload.response.club.DisciplineResponse;
@@ -24,10 +25,6 @@ import org.springframework.data.domain.Pageable;
 import com.example.tournament.entity.Tournament;
 import com.example.tournament.enums.RoleCode;
 import com.example.tournament.exception.custom.ResourceNotFoundException;
-import com.example.tournament.payload.response.Tournament.CourtResponse;
-import com.example.tournament.payload.response.Tournament.TournamentDetailResponse;
-import com.example.tournament.payload.response.Tournament.TournamentResponse;
-import com.example.tournament.payload.response.Tournament.VenueCourtResponse;
 import com.example.tournament.repository.TournamentRepository;
 import com.example.tournament.enums.RegistrationStatus;
 import com.example.tournament.entity.TournamentRegistration;
@@ -46,6 +43,7 @@ public class TournamentService {
     private final TournamentRepository             tournamentRepository;
     private final SportRepository                   sportRepository;
     private final VenueRepository       venueRepository;
+
 
     private Club getMyClub() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -492,6 +490,26 @@ public class TournamentService {
 
         Tournament savedTournament = tournamentRepository.save(tournament);
         return mapToTournamentDetailResponse(savedTournament);
+    }
+
+    public List<TournamentSelectResponse> getOpeningTournaments() {
+        // Chỉ lấy các giải đang mở đăng ký
+        User currentUser = getCurrentUser();
+        List<Tournament> tournaments = tournamentRepository.findByStatus(TournamentStatus.REGISTRATION_OPEN);
+
+        return tournaments.stream()
+                .map(t -> TournamentSelectResponse.builder()
+                        .id(t.getId())
+                        .name(t.getName())
+                        .sport(t.getSport().getName())
+
+
+                        // Chỉ đếm số đội, bỏ hoàn toàn phần setMaxTeams
+                        // Ép kiểu (int) vì hàm count trả về long
+                        .registeredCount((int) registrationRepository.countByTournamentIdAndStatus(t.getId(), RegistrationStatus.APPROVED))
+
+                        .build())
+                .collect(Collectors.toList());
     }
 }
 

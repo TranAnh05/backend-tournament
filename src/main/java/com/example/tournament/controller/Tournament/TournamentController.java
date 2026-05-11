@@ -1,35 +1,29 @@
-package com.example.tournament.controller;
+package com.example.tournament.controller.Tournament;
 
-import com.example.tournament.entity.Tournament;
-import com.example.tournament.entity.Venue;
 import com.example.tournament.enums.RoleCode;
 import com.example.tournament.payload.request.Tournament.TournamentRequest;
 import com.example.tournament.payload.response.ApiResponse;
 import com.example.tournament.payload.response.Tournament.TournamentDetailResponse;
 import com.example.tournament.payload.response.Tournament.TournamentResponse;
+import com.example.tournament.payload.response.Tournament.TournamentSelectResponse;
 import com.example.tournament.payload.response.admin.SportResponse;
 import com.example.tournament.payload.response.admin.VenueResponse;
 import com.example.tournament.payload.response.club.DisciplineResponse;
 import com.example.tournament.payload.response.club.RegistrationResponse;
-import com.example.tournament.payload.response.club.TournamentResponseClub;
 import com.example.tournament.security.jwt.JwtTokenProvider;
 import com.example.tournament.service.TournamentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import com.example.tournament.payload.request.club.RegisterTournamentRequest;
 
 
-import java.nio.file.attribute.UserPrincipal;
 import java.util.List;
 
 @RestController
@@ -235,6 +229,17 @@ public class TournamentController {
                         .code(200)
                         .message("Giải đấu đã kết thúc thành công!")
                         .result(response)
+                        .build()
+        );
+    }
+
+    @GetMapping("/opening")
+    public ResponseEntity<ApiResponse<List<TournamentSelectResponse>>> getOpeningTournaments() {
+        return ResponseEntity.ok(
+                ApiResponse.<List<TournamentSelectResponse>>builder()
+                        .code(200)
+                        .message("Lấy danh sách giải đấu đang mở đăng ký thành công")
+                        .result(tournamentService.getOpeningTournaments())
                         .build()
         );
     }
