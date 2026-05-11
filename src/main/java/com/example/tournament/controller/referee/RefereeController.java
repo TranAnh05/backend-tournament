@@ -1,5 +1,6 @@
-package com.example.tournament.controller.admin;
+package com.example.tournament.controller.referee;
 
+import com.example.tournament.payload.request.referee.ChangeMatchStatusRequest;
 import com.example.tournament.payload.request.referee.ConfirmLineupRequest;
 import com.example.tournament.payload.request.referee.RefereeMatchRequest;
 import com.example.tournament.payload.response.ApiResponse;
@@ -69,6 +70,25 @@ public class RefereeController {
         Long refereeId = userDetails.getUser().getId();
 
         String message = refereeService.confirmLineups(refereeId, matchId, request);
+
+        ApiResponse<String> response = ApiResponse.<String>builder()
+                .code(HttpStatus.OK.value())
+                .message(message)
+                .result(null)
+                .build();
+
+        return ResponseEntity.ok(response);
+    }
+
+    @PatchMapping("/matches/{id}/status")
+    public ResponseEntity<ApiResponse<String>> changeMatchStatus(
+            @PathVariable("id") Long matchId,
+            @RequestBody @Valid ChangeMatchStatusRequest request) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        Long refereeId = userDetails.getUser().getId();
+
+        String message = refereeService.changeMatchStatus(refereeId, matchId, request);
 
         ApiResponse<String> response = ApiResponse.<String>builder()
                 .code(HttpStatus.OK.value())

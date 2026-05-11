@@ -14,5 +14,8 @@ public enum EventType {
     ASSIST, REBOUND, BLOCK, STEAL, ACE, WINNER,
 
     // Nhóm Thời gian
-    START_PERIOD, END_PERIOD, TIMEOUT
+    START_PERIOD, END_PERIOD, TIMEOUT,
+
+    // Nhóm Hệ thống (Trạng thái toàn trận)
+    MATCH_START, MATCH_PAUSE, MATCH_RESUME, MATCH_END, MATCH_CANCEL
 }
