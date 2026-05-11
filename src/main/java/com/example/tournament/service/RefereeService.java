@@ -1,20 +1,23 @@
 package com.example.tournament.service;
 
 import com.example.tournament.entity.*;
+import com.example.tournament.enums.EventType;
 import com.example.tournament.enums.LineupType;
 import com.example.tournament.enums.MatchStatus;
+import com.example.tournament.exception.custom.AppException;
+import com.example.tournament.exception.custom.ResourceNotFoundException;
+import com.example.tournament.payload.request.referee.ChangeMatchStatusRequest;
 import com.example.tournament.payload.request.referee.ConfirmLineupRequest;
 import com.example.tournament.payload.request.referee.RefereeMatchRequest;
 import com.example.tournament.payload.response.referee.MatchDetailResponse;
 import com.example.tournament.payload.response.referee.RefereeAssignedMatchResponse;
-import com.example.tournament.repository.MatchLineupRepository;
-import com.example.tournament.repository.MatchRefereeRepository;
-import com.example.tournament.repository.MatchRepository;
-import com.example.tournament.repository.SportRuleRepository;
+import com.example.tournament.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +30,7 @@ public class RefereeService {
     private final MatchLineupRepository matchLineupRepository;
     private final SportRuleRepository sportRuleRepository;
     private final MatchRepository matchRepository;
+    private final MatchEventRepository matchEventRepository;
 
     @Transactional(readOnly = true)
     public List<RefereeAssignedMatchResponse> getAssignedMatches(Long refereeId, RefereeMatchRequest request) {
@@ -169,5 +173,107 @@ public class RefereeService {
         }
 
         return "Đã xác nhận thành công " + updatedCount + " vận động viên.";
+    }
+
+    @Transactional
+    public String changeMatchStatus(Long refereeId, Long matchId, ChangeMatchStatusRequest request) {
+        if (!matchRefereeRepository.existsByMatchIdAndRefereeId(matchId, refereeId)) {
+            throw new AppException(HttpStatus.FORBIDDEN, "Bạn không có quyền thao tác trên trận đấu này!");
+        }
+
+        Match match = matchRepository.findById(matchId)
+                .orElseThrow(() -> new AppException("Không tìm thấy trận đấu"));
+
+        String currentStatus = String.valueOf(match.getStatus());
+        String targetStatus = request.getTargetStatus();
+
+        // Kiem tra chuyen doi trang thai
+        validateStateTransition(currentStatus, targetStatus);
+
+        //  Kiểm tra điều kiện tiên quyết nếu muốn "Bắt đầu trận"
+        if ("SCHEDULED".equals(currentStatus) && "IN_PROGRESS".equals(targetStatus)) {
+            validatePreConditionsForStart(match);
+        }
+
+        // Đổi trạng thái
+        match.setStatus(MatchStatus.valueOf(targetStatus));
+
+        // Lưu vết sự kiện vào Event
+        EventType type;
+        switch (targetStatus) {
+            case "IN_PROGRESS":
+                // Nếu từ SCHEDULED lên thì là Bắt đầu, nếu từ PAUSED lên thì là Tiếp tục
+                type = "SCHEDULED".equals(currentStatus) ? EventType.MATCH_START : EventType.MATCH_RESUME;
+                break;
+            case "PAUSED":
+                type = EventType.MATCH_PAUSE;
+                break;
+            case "FINISHED":
+                type = EventType.MATCH_END;
+                break;
+            case "CANCELED":
+                type = EventType.MATCH_CANCEL;
+                break;
+            default:
+                throw new AppException("Trạng thái mục tiêu không hợp lệ để ghi log.");
+        }
+
+        // Gộp note vào description
+        String eventDescription = "Hệ thống: Trọng tài đổi trạng thái từ " + currentStatus + " sang " + targetStatus;
+        if (request.getNote() != null && !request.getNote().isBlank()) {
+            eventDescription += " | Ghi chú: " + request.getNote();
+        }
+
+        // Khởi tạo và lưu Event
+        MatchEvent event = MatchEvent.builder()
+                .match(match)
+                .eventType(type)
+                .eventTime("0") // Đây là sự kiện hệ thống, có thể set mặc định là "0" hoặc null
+                .description(eventDescription)
+                // Các trường club, primaryAthlete... để mặc định là null vì đây không phải sự kiện của VĐV
+                .build();
+
+        matchEventRepository.save(event);
+
+        return "Đã chuyển trạng thái trận đấu sang: " + targetStatus;
+    }
+
+    private void validateStateTransition(String current, String target) {
+        if ("FINISHED".equals(current) || "CANCELED".equals(current)) {
+            throw new AppException("Trận đấu đã kết thúc hoặc bị hủy, không thể thay đổi trạng thái.");
+        }
+        if ("SCHEDULED".equals(current) && !List.of("IN_PROGRESS", "CANCELED").contains(target)) {
+            throw new AppException("Trận đấu chưa bắt đầu chỉ có thể chuyển sang (Bắt đầu) hoặc (Hủy).");
+        }
+        if ("IN_PROGRESS".equals(current) && !List.of("PAUSED", "FINISHED").contains(target)) {
+            throw new AppException("Trận đấu đang diễn ra chỉ có thể  (Tạm dừng) hoặc  (Kết thúc).");
+        }
+        if ("PAUSED".equals(current) && !List.of("IN_PROGRESS", "FINISHED").contains(target)) {
+            throw new AppException("Trận đấu đang tạm dừng chỉ có thể (Tiếp tục) hoặc (Kết thúc).");
+        }
+    }
+
+    private void validatePreConditionsForStart(Match match) {
+        // Lấy số lượng tối thiểu từ luật
+        int minPlayers = sportRuleRepository.findBySportId(match.getTournament().getSport().getId())
+                .stream()
+                .filter(r -> "MIN_STARTING_PLAYERS".equals(r.getRuleKey()))
+                .map(r -> Integer.parseInt(r.getRuleValue()))
+                .findFirst()
+                .orElse(1);
+
+        // Đếm số lượng VĐV ĐÁ CHÍNH đã được xác nhận của 2 đội
+        long homeConfirmed = matchLineupRepository.countByMatchIdAndClubIdAndLineupTypeAndIsConfirmed(
+                match.getId(), match.getHomeClub().getId(), LineupType.STARTING, true);
+
+        long awayConfirmed = matchLineupRepository.countByMatchIdAndClubIdAndLineupTypeAndIsConfirmed(
+                match.getId(), match.getAwayClub().getId(), LineupType.STARTING, true);
+
+        if (homeConfirmed < minPlayers) {
+            throw new AppException("Đội " + match.getHomeClub().getName() + " chưa đủ số lượng VĐV ra sân tối thiểu (" + minPlayers + "). Vui lòng duyệt thêm.");
+        }
+        if (awayConfirmed < minPlayers) {
+            throw new AppException("Đội " + match.getAwayClub().getName() + " chưa đủ số lượng VĐV ra sân tối thiểu (" + minPlayers + "). Vui lòng duyệt thêm.");
+        }
     }
 }

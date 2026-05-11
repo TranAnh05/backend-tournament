@@ -25,4 +25,5 @@ public class MatchResponse {
     private Integer homeScore;
     private Integer awayScore;
     private List<MatchEventResponse> events;
+    private Boolean hasLineup;
 }

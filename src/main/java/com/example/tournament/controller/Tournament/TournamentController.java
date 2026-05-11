@@ -2,6 +2,7 @@ package com.example.tournament.controller.Tournament;
 
 import com.example.tournament.enums.RoleCode;
 import com.example.tournament.payload.request.Tournament.TournamentRequest;
+import com.example.tournament.payload.request.club.SubmitRosterRequest;
 import com.example.tournament.payload.response.ApiResponse;
 import com.example.tournament.payload.response.Tournament.TournamentDetailResponse;
 import com.example.tournament.payload.response.Tournament.TournamentResponse;
@@ -166,6 +167,24 @@ public class TournamentController {
                         .message("Rút đơn thành công")
                         .build()
         );
+    }
+    //kiet them phan nay
+    @PostMapping("/{tournamentId}/roster")
+    @PreAuthorize("hasRole('CLUB_MANAGER')")
+    public ResponseEntity<ApiResponse<Void>> submitRoster(
+            @PathVariable Long tournamentId,
+            @RequestBody SubmitRosterRequest request) {
+        tournamentService.submitRoster(tournamentId, request);
+        return ResponseEntity.ok(ApiResponse.<Void>builder()
+                .code(200).message("Nộp danh sách thi đấu thành công").build());
+    }
+
+    @GetMapping("/{tournamentId}/roster/status")
+    @PreAuthorize("hasRole('CLUB_MANAGER')")
+    public ResponseEntity<ApiResponse<Boolean>> getRosterStatus(@PathVariable Long tournamentId) {
+        return ResponseEntity.ok(ApiResponse.<Boolean>builder()
+                .code(200).message("OK")
+                .result(tournamentService.hasRoster(tournamentId)).build());
     }
 
     @DeleteMapping("/{id}")

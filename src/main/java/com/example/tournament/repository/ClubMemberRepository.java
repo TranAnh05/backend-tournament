@@ -1,6 +1,7 @@
 //clb
 package com.example.tournament.repository;
 
+import com.example.tournament.entity.Athlete;
 import com.example.tournament.entity.Club;
 import com.example.tournament.entity.ClubMember;
 import com.example.tournament.enums.ClubRole;
@@ -37,4 +38,8 @@ public interface ClubMemberRepository extends JpaRepository<ClubMember, Long> {
     boolean existsJerseyNumberInClub(@Param("club") Club club, @Param("number") Integer number, @Param("excludeAthleteId") Long excludeAthleteId);
 
     Optional<ClubMember> findByClubAndAthlete_IdAndJoinStatus(Club club, Long athleteId, JoinStatus joinStatus);
+
+    Optional<ClubMember> findFirstByAthleteAndJoinStatusIn(Athlete athlete, List<JoinStatus> statuses);
+    List<ClubMember> findByAthleteOrderByCreatedAtDesc(Athlete athlete);
+    long countByClubAndJoinStatus(Club club, JoinStatus status);
 }

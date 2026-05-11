@@ -6,7 +6,6 @@ import com.example.tournament.enums.TournamentFormat;
 import com.example.tournament.enums.TournamentStatus;
 import com.example.tournament.exception.custom.AppException;
 import com.example.tournament.payload.request.Tournament.TournamentRequest;
-import com.example.tournament.payload.response.Tournament.*;
 import com.example.tournament.payload.response.admin.SportResponse;
 import com.example.tournament.payload.response.admin.VenueResponse;
 import com.example.tournament.payload.response.club.DisciplineResponse;
@@ -25,6 +24,10 @@ import org.springframework.data.domain.Pageable;
 import com.example.tournament.entity.Tournament;
 import com.example.tournament.enums.RoleCode;
 import com.example.tournament.exception.custom.ResourceNotFoundException;
+import com.example.tournament.payload.response.Tournament.CourtResponse;
+import com.example.tournament.payload.response.Tournament.TournamentDetailResponse;
+import com.example.tournament.payload.response.Tournament.TournamentResponse;
+import com.example.tournament.payload.response.Tournament.VenueCourtResponse;
 import com.example.tournament.repository.TournamentRepository;
 import com.example.tournament.enums.RegistrationStatus;
 import com.example.tournament.entity.TournamentRegistration;
@@ -44,6 +47,10 @@ public class TournamentService {
     private final SportRepository                   sportRepository;
     private final VenueRepository       venueRepository;
 
+    //kiet them phan nay
+    private final TournamentRosterRepository rosterRepository;
+    private final AthleteRepository          athleteRepository;
+    private final ClubMemberRepository       clubMemberRepository;
 
     private Club getMyClub() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -491,25 +498,68 @@ public class TournamentService {
         Tournament savedTournament = tournamentRepository.save(tournament);
         return mapToTournamentDetailResponse(savedTournament);
     }
+    //kiet them cai nay de Nộp danh sách VĐV tham gia giải, Kiểm tra CLB đã nộp danh sách chưa
+    @Transactional
+    public void submitRoster(Long tournamentId,
+                             com.example.tournament.payload.request.club.SubmitRosterRequest request) {
+        Club club = getMyClub();
 
-    public List<TournamentSelectResponse> getOpeningTournaments() {
-        // Chỉ lấy các giải đang mở đăng ký
-        User currentUser = getCurrentUser();
-        List<Tournament> tournaments = tournamentRepository.findByStatus(TournamentStatus.REGISTRATION_OPEN);
+        Tournament tournament = tournamentRepository.findById(tournamentId)
+                .orElseThrow(() -> new AppException(HttpStatus.NOT_FOUND, "Khong tim thay giai dau"));
 
-        return tournaments.stream()
-                .map(t -> TournamentSelectResponse.builder()
-                        .id(t.getId())
-                        .name(t.getName())
-                        .sport(t.getSport().getName())
+        registrationRepository.findByTournamentIdAndClub(tournamentId, club)
+                .filter(r -> r.getStatus() == RegistrationStatus.APPROVED)
+                .orElseThrow(() -> new AppException(HttpStatus.FORBIDDEN,
+                        "CLB chua duoc duyet tham gia giai dau nay"));
 
+        int count = request.getRosters().size();
+        if (count < tournament.getMinAthletes())
+            throw new AppException(HttpStatus.BAD_REQUEST,
+                    "Can it nhat " + tournament.getMinAthletes() + " VDV");
+        if (count > tournament.getMaxAthletes())
+            throw new AppException(HttpStatus.BAD_REQUEST,
+                    "Toi da " + tournament.getMaxAthletes() + " VDV");
 
-                        // Chỉ đếm số đội, bỏ hoàn toàn phần setMaxTeams
-                        // Ép kiểu (int) vì hàm count trả về long
-                        .registeredCount((int) registrationRepository.countByTournamentIdAndStatus(t.getId(), RegistrationStatus.APPROVED))
+        rosterRepository.deleteByTournamentAndClub(tournament, club);
 
-                        .build())
-                .collect(Collectors.toList());
+        var newRosters = request.getRosters().stream().map(item -> {
+            Athlete athlete = athleteRepository.findById(item.getAthleteId())
+                    .orElseThrow(() -> new AppException(HttpStatus.NOT_FOUND,
+                            "Khong tim thay VDV: " + item.getAthleteId()));
+
+            boolean isMember = clubMemberRepository
+                    .existsByClubAndAthleteIdAndJoinStatus(club, athlete.getId(),
+                            com.example.tournament.enums.JoinStatus.APPROVED);
+            if (!isMember)
+                throw new AppException(HttpStatus.BAD_REQUEST,
+                        "VDV " + athlete.getId() + " khong phai thanh vien APPROVED cua CLB");
+
+            com.example.tournament.enums.RosterRole role;
+            try {
+                role = com.example.tournament.enums.RosterRole.valueOf(
+                        item.getRole() != null ? item.getRole() : "PLAYER");
+            } catch (IllegalArgumentException e) {
+                role = com.example.tournament.enums.RosterRole.PLAYER;
+            }
+
+            return TournamentRoster.builder()
+                    .tournament(tournament)
+                    .club(club)
+                    .athlete(athlete)
+                    .jerseyNumber(item.getJerseyNumber())
+                    .position(item.getPosition())
+                    .role(role)
+                    .build();
+        }).toList();
+
+        rosterRepository.saveAll(newRosters);
+    }
+
+    public boolean hasRoster(Long tournamentId) {
+        Club club = getMyClub();
+        Tournament tournament = tournamentRepository.findById(tournamentId)
+                .orElseThrow(() -> new AppException(HttpStatus.NOT_FOUND, "Khong tim thay giai dau"));
+        return rosterRepository.existsByTournamentAndClub(tournament, club);
     }
 }
 
