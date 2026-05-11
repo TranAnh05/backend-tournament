@@ -47,6 +47,11 @@ public class TournamentService {
     private final SportRepository                   sportRepository;
     private final VenueRepository       venueRepository;
 
+    //kiet them phan nay
+    private final TournamentRosterRepository rosterRepository;
+    private final AthleteRepository          athleteRepository;
+    private final ClubMemberRepository       clubMemberRepository;
+
     private Club getMyClub() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
@@ -492,6 +497,69 @@ public class TournamentService {
 
         Tournament savedTournament = tournamentRepository.save(tournament);
         return mapToTournamentDetailResponse(savedTournament);
+    }
+    //kiet them cai nay de Nộp danh sách VĐV tham gia giải, Kiểm tra CLB đã nộp danh sách chưa
+    @Transactional
+    public void submitRoster(Long tournamentId,
+                             com.example.tournament.payload.request.club.SubmitRosterRequest request) {
+        Club club = getMyClub();
+
+        Tournament tournament = tournamentRepository.findById(tournamentId)
+                .orElseThrow(() -> new AppException(HttpStatus.NOT_FOUND, "Khong tim thay giai dau"));
+
+        registrationRepository.findByTournamentIdAndClub(tournamentId, club)
+                .filter(r -> r.getStatus() == RegistrationStatus.APPROVED)
+                .orElseThrow(() -> new AppException(HttpStatus.FORBIDDEN,
+                        "CLB chua duoc duyet tham gia giai dau nay"));
+
+        int count = request.getRosters().size();
+        if (count < tournament.getMinAthletes())
+            throw new AppException(HttpStatus.BAD_REQUEST,
+                    "Can it nhat " + tournament.getMinAthletes() + " VDV");
+        if (count > tournament.getMaxAthletes())
+            throw new AppException(HttpStatus.BAD_REQUEST,
+                    "Toi da " + tournament.getMaxAthletes() + " VDV");
+
+        rosterRepository.deleteByTournamentAndClub(tournament, club);
+
+        var newRosters = request.getRosters().stream().map(item -> {
+            Athlete athlete = athleteRepository.findById(item.getAthleteId())
+                    .orElseThrow(() -> new AppException(HttpStatus.NOT_FOUND,
+                            "Khong tim thay VDV: " + item.getAthleteId()));
+
+            boolean isMember = clubMemberRepository
+                    .existsByClubAndAthleteIdAndJoinStatus(club, athlete.getId(),
+                            com.example.tournament.enums.JoinStatus.APPROVED);
+            if (!isMember)
+                throw new AppException(HttpStatus.BAD_REQUEST,
+                        "VDV " + athlete.getId() + " khong phai thanh vien APPROVED cua CLB");
+
+            com.example.tournament.enums.RosterRole role;
+            try {
+                role = com.example.tournament.enums.RosterRole.valueOf(
+                        item.getRole() != null ? item.getRole() : "PLAYER");
+            } catch (IllegalArgumentException e) {
+                role = com.example.tournament.enums.RosterRole.PLAYER;
+            }
+
+            return TournamentRoster.builder()
+                    .tournament(tournament)
+                    .club(club)
+                    .athlete(athlete)
+                    .jerseyNumber(item.getJerseyNumber())
+                    .position(item.getPosition())
+                    .role(role)
+                    .build();
+        }).toList();
+
+        rosterRepository.saveAll(newRosters);
+    }
+
+    public boolean hasRoster(Long tournamentId) {
+        Club club = getMyClub();
+        Tournament tournament = tournamentRepository.findById(tournamentId)
+                .orElseThrow(() -> new AppException(HttpStatus.NOT_FOUND, "Khong tim thay giai dau"));
+        return rosterRepository.existsByTournamentAndClub(tournament, club);
     }
 }
 

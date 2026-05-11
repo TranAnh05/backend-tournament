@@ -13,4 +13,7 @@ public interface TournamentRosterRepository extends JpaRepository<TournamentRost
     List<TournamentRoster> findByTournamentAndClub(Tournament tournament, Club club);
     boolean existsByTournamentAndAthlete_Id(Tournament tournament, Long athleteId);
     Optional<TournamentRoster> findByTournamentAndAthlete_Id(Tournament tournament, Long athleteId);
+
+    boolean existsByTournamentAndClub(Tournament tournament, Club club);
+    void deleteByTournamentAndClub(Tournament tournament, Club club);
 }

@@ -42,7 +42,16 @@ public class MatchService {
                 .orElseThrow(() -> new AppException(HttpStatus.NOT_FOUND, "Ban chua co CLB nao"));
     }
 
+    private Club currentClubCache = null;
+
+    private Club getMyClubSafe() {
+        try { return getMyClub(); } catch (Exception e) { return null; }
+    }
+
     private MatchResponse toResponse(Match m) {
+        if (currentClubCache == null) currentClubCache = getMyClubSafe();
+        final Club club = currentClubCache;
+
         List<MatchEventResponse> events = m.getEvents().stream()
                 .filter(e -> Boolean.FALSE.equals(e.getIsDeleted()))
                 .map(e -> MatchEventResponse.builder()
@@ -56,6 +65,10 @@ public class MatchService {
                         .clubId(e.getClub() != null ? e.getClub().getId() : null)
                         .build())
                 .collect(Collectors.toList());
+
+        // Kiểm tra CLB đã nộp đội hình cho trận này chưa
+        boolean hasLineup = club != null && matchLineupRepository.findByMatch(m)
+                .stream().anyMatch(l -> l.getClub().getId().equals(club.getId()));
 
         return MatchResponse.builder()
                 .id(m.getId())
@@ -73,11 +86,14 @@ public class MatchService {
                 .homeScore(m.getHomeScore())
                 .awayScore(m.getAwayScore())
                 .events(events)
+                .hasLineup(hasLineup)
                 .build();
     }
 
     public List<MatchResponse> getMyMatches() {
+        currentClubCache = null; // reset cache mỗi request
         Club club = getMyClub();
+        currentClubCache = club;
         return matchRepository.findByClub(club).stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
@@ -101,7 +117,8 @@ public class MatchService {
                 .filter(l -> l.getClub().getId().equals(club.getId()))
                 .collect(Collectors.toList());
         matchLineupRepository.deleteAll(oldLineups);
-        matchLineupRepository.flush(); // ← THÊM DÒNG NÀY
+        matchLineupRepository.deleteAll(oldLineups);
+        matchLineupRepository.flush(); // ← thêm dòng này
 
         List<MatchLineup> newLineups = request.getLineups().stream().map(item -> {
             Athlete athlete = athleteRepository.findById(item.getAthleteId())
