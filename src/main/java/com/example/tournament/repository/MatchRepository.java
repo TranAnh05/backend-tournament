@@ -16,14 +16,20 @@ import java.util.Optional;
 @Repository
 public interface MatchRepository extends JpaRepository<Match, Long> {
 
-    @Query("SELECT m FROM Match m WHERE m.homeClub = :club OR m.awayClub = :club ORDER BY m.scheduledTime ASC")
+    // ĐÃ SỬA: Thêm JOIN FETCH để tránh LazyInitializationException
+    @Query("SELECT m FROM Match m " +
+            "JOIN FETCH m.tournament " +
+            "JOIN FETCH m.groupStage " +
+            "LEFT JOIN FETCH m.homeClub " +
+            "LEFT JOIN FETCH m.awayClub " +
+            "LEFT JOIN FETCH m.events " +
+            "WHERE m.homeClub = :club OR m.awayClub = :club " +
+            "ORDER BY m.scheduledTime ASC")
     List<Match> findByClub(@Param("club") Club club);
 
     // ADMIN
-    // Kiểm tra xem sân có trận đấu nào không
     boolean existsByCourtId(Long courtId);
 
-    // Kiểm tra xem một môn thể thao cụ thể trên sân có trận đấu nào chưa kết thúc không
     @Query("SELECT COUNT(m) > 0 FROM Match m WHERE m.court.id = :courtId AND m.tournament.sport.id = :sportId " +
             "AND m.status IN ('SCHEDULED', 'IN_PROGRESS')")
     boolean hasUpcomingMatchesForSportOnCourt(@Param("courtId") Long courtId, @Param("sportId") Long sportId);
@@ -46,9 +52,7 @@ public interface MatchRepository extends JpaRepository<Match, Long> {
             @Param("startOfDay") LocalDateTime startOfDay,
             @Param("endOfDay") LocalDateTime endOfDay);
 
-    // Đếm số trận đã đá xong (FINISHED)
     long countByStatusAndUpdatedAtBetween(MatchStatus status, LocalDateTime start, LocalDateTime end);
-    // ==========================================================
 
     // REFEREE
     @Query("SELECT m FROM Match m " +
@@ -60,5 +64,4 @@ public interface MatchRepository extends JpaRepository<Match, Long> {
             "LEFT JOIN FETCH c.venue " +
             "WHERE m.id = :matchId")
     Optional<Match> findMatchDetailById(@Param("matchId") Long matchId);
-    // ============================================================
 }

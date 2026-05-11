@@ -101,6 +101,7 @@ public class MatchService {
                 .filter(l -> l.getClub().getId().equals(club.getId()))
                 .collect(Collectors.toList());
         matchLineupRepository.deleteAll(oldLineups);
+        matchLineupRepository.flush(); // ← THÊM DÒNG NÀY
 
         List<MatchLineup> newLineups = request.getLineups().stream().map(item -> {
             Athlete athlete = athleteRepository.findById(item.getAthleteId())

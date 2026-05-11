@@ -111,11 +111,7 @@ public class ClubService {
         Integer ranking = null;
         if (standing != null) {
             List<Standing> allStandings = standing.getGroupStage() != null
-                    ? standingRepository.findAll().stream()
-                    .filter(s -> s.getGroupStage() != null
-                            && s.getGroupStage().getId().equals(standing.getGroupStage().getId()))
-                    .sorted((a, b) -> b.getTotalPoints() - a.getTotalPoints())
-                    .collect(java.util.stream.Collectors.toList())
+                    ? standingRepository.findByGroupStageIdOrderByTotalPointsDesc(standing.getGroupStage().getId())
                     : java.util.Collections.emptyList();
             for (int i = 0; i < allStandings.size(); i++) {
                 if (allStandings.get(i).getClub().getId().equals(club.getId())) {
@@ -171,6 +167,7 @@ public class ClubService {
         return toClubResponse(clubRepository.save(club));
     }
     // 2. Xem thông tin CLB
+    @Transactional(readOnly = true)
     public ClubResponse getMyClubInfo() {
         Club club = getMyClub();
 
@@ -349,6 +346,7 @@ public class ClubService {
     }
 
     // Lấy danh sách roster hiện tại của CLB trong giải
+    @Transactional(readOnly = true)
     public RosterResponse getMyRoster(Long tournamentId) {
         Club club = getMyClub();
 
@@ -412,6 +410,7 @@ public class ClubService {
         // Xóa roster cũ (nếu có) rồi tạo mới
         List<TournamentRoster> existing = rosterRepository.findByTournamentAndClub(tournament, club);
         rosterRepository.deleteAll(existing);
+        rosterRepository.flush();
 
         List<TournamentRoster> rosters = request.getPlayers().stream().map(p -> {
             // Kiểm tra VĐV thuộc CLB và đã APPROVED
