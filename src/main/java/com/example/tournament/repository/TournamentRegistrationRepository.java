@@ -24,5 +24,5 @@ public interface TournamentRegistrationRepository extends JpaRepository<Tourname
     Page<TournamentRegistration> findByTournamentIdAndStatus(Long tournamentId, RegistrationStatus status, Pageable pageable);
 
     long countByTournamentIdAndStatus(Long tournamentId, RegistrationStatus status);
-
+    Optional<TournamentRegistration> findByIdAndTournamentId(Long id, Long tournamentId);
 }

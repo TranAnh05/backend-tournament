@@ -578,5 +578,6 @@ public class TournamentService {
                         .build())
                 .collect(Collectors.toList());
     }
+
 }
 
