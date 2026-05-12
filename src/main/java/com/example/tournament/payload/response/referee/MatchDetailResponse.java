@@ -25,6 +25,8 @@ public class MatchDetailResponse {
     private TeamLineupDto homeTeam;
     private TeamLineupDto awayTeam;
 
+    private List<MatchEventDto> timeline;
+
     @Data
     @Builder
     public static class TeamLineupDto {
@@ -49,5 +51,21 @@ public class MatchDetailResponse {
         private Integer jerseyNumber; // Số áo
         private String position;      // Vị trí
         private Boolean isConfirmed;  // Trạng thái đã duyệt chưa
+    }
+
+    @Data
+    @Builder
+    public static class MatchEventDto {
+        private Long id;
+        private String eventType;
+        private String eventTime;
+        private String description;
+        private LocalDateTime createdAt;
+
+        private String primaryAthleteName;
+        private Integer primaryAthleteNumber;
+        private String secondaryAthleteName;
+        private Integer secondaryAthleteNumber;
+        private Long clubId;
     }
 }

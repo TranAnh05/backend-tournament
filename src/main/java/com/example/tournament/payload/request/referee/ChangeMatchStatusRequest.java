@@ -10,4 +10,6 @@ public class ChangeMatchStatusRequest {
     private String targetStatus; // Truyền vào: IN_PROGRESS, PAUSED, FINISHED, CANCELED
 
     private String note; // Ghi chú thêm (VD: "Trời mưa to", "Cầu thủ chấn thương")
+
+    private String eventTime;
 }
