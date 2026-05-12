@@ -40,5 +40,6 @@ public interface MatchLineupRepository extends JpaRepository<MatchLineup, Long> 
             Boolean isConfirmed);
 
     Optional<MatchLineup> findByMatchIdAndAthleteId(Long matchId, Long athleteId);
+    List<MatchLineup> findByMatchId(Long matchId);
     // ==========================================
 }

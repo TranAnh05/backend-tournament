@@ -6,10 +6,7 @@ import com.example.tournament.enums.LineupType;
 import com.example.tournament.enums.MatchStatus;
 import com.example.tournament.exception.custom.AppException;
 import com.example.tournament.exception.custom.ResourceNotFoundException;
-import com.example.tournament.payload.request.referee.ChangeMatchStatusRequest;
-import com.example.tournament.payload.request.referee.ConfirmLineupRequest;
-import com.example.tournament.payload.request.referee.MatchEventRequest;
-import com.example.tournament.payload.request.referee.RefereeMatchRequest;
+import com.example.tournament.payload.request.referee.*;
 import com.example.tournament.payload.response.referee.MatchDetailResponse;
 import com.example.tournament.payload.response.referee.RefereeAssignedMatchResponse;
 import com.example.tournament.repository.*;
@@ -35,6 +32,7 @@ public class RefereeService {
     private final PlayerStatisticRepository playerStatisticRepository;
     private final ClubRepository clubRepository;
     private final AthleteRepository athleteRepository;
+    private final StandingRepository standingRepository;
 
     @Transactional(readOnly = true)
     public List<RefereeAssignedMatchResponse> getAssignedMatches(Long refereeId, RefereeMatchRequest request) {
@@ -198,8 +196,16 @@ public class RefereeService {
 
     @Transactional
     public String changeMatchStatus(Long refereeId, Long matchId, ChangeMatchStatusRequest request) {
-        if (!matchRefereeRepository.existsByMatchIdAndRefereeId(matchId, refereeId)) {
-            throw new AppException(HttpStatus.FORBIDDEN, "Bạn không có quyền thao tác trên trận đấu này!");
+//        if (!matchRefereeRepository.existsByMatchIdAndRefereeId(matchId, refereeId)) {
+//            throw new AppException(HttpStatus.FORBIDDEN, "Bạn không có quyền thao tác trên trận đấu này!");
+//        }
+
+        MatchReferee matchReferee = matchRefereeRepository.findByMatchIdAndRefereeId(matchId, refereeId)
+                .orElseThrow(() -> new AppException(HttpStatus.FORBIDDEN, "Bạn không có quyền thao tác trên trận đấu này!"));
+
+        // NẾU ĐÃ KÝ DUYỆT -> VĂNG LỖI NGAY LẬP TỨC, KHÔNG CHẠY XUỐNG DƯỚI NỮA
+        if (matchReferee.getSignedAt() != null) {
+            throw new AppException(HttpStatus.LOCKED, "Biên bản trận đấu đã được chốt sổ. Không thể thêm, sửa, hay xóa sự kiện!");
         }
 
         Match match = matchRepository.findById(matchId)
@@ -313,8 +319,16 @@ public class RefereeService {
 
     @Transactional
     public String recordMatchEvent(Long refereeId, Long matchId, MatchEventRequest request) {
-        if (!matchRefereeRepository.existsByMatchIdAndRefereeId(matchId, refereeId)) {
-            throw new AppException(HttpStatus.FORBIDDEN, "Bạn không có quyền thao tác trên trận đấu này!");
+//        if (!matchRefereeRepository.existsByMatchIdAndRefereeId(matchId, refereeId)) {
+//            throw new AppException(HttpStatus.FORBIDDEN, "Bạn không có quyền thao tác trên trận đấu này!");
+//        }
+
+        MatchReferee matchReferee = matchRefereeRepository.findByMatchIdAndRefereeId(matchId, refereeId)
+                .orElseThrow(() -> new AppException(HttpStatus.FORBIDDEN, "Bạn không có quyền thao tác trên trận đấu này!"));
+
+        // NẾU ĐÃ KÝ DUYỆT -> VĂNG LỖI NGAY LẬP TỨC, KHÔNG CHẠY XUỐNG DƯỚI NỮA
+        if (matchReferee.getSignedAt() != null) {
+            throw new AppException(HttpStatus.LOCKED, "Biên bản trận đấu đã được chốt sổ. Không thể thêm, sửa, hay xóa sự kiện!");
         }
 
         Match match = matchRepository.findById(matchId)
@@ -463,6 +477,138 @@ public class RefereeService {
             enteringPlayer.setLineupType(LineupType.STARTING);  // Đưa vào đá chính
 
             matchLineupRepository.saveAll(List.of(leavingPlayer, enteringPlayer));
+        }
+    }
+
+    @Transactional
+    public String finalizeMatch(Long refereeId, Long matchId, FinalizeMatchRequest request) {
+        MatchReferee matchReferee = matchRefereeRepository.findByMatchIdAndRefereeId(matchId, refereeId)
+                .orElseThrow(() -> new AppException(HttpStatus.FORBIDDEN, "Bạn không có quyền thao tác trên trận đấu này!"));
+
+        if (matchReferee.getSignedAt() != null) {
+            throw new AppException("Biên bản này đã được ký duyệt và khóa, không thể thao tác lại!");
+        }
+
+        Match match = matchRepository.findById(matchId)
+                .orElseThrow(() -> new ResourceNotFoundException("Trận đấu", "id", matchId));
+
+        if (MatchStatus.SCHEDULED.equals(match.getStatus()) || MatchStatus.CANCELED.equals(match.getStatus())) {
+            throw new AppException("Không thể chốt sổ trận đấu chưa diễn ra hoặc đã bị hủy.");
+        }
+
+        // ĐÓNG BĂNG DỮ LIỆU
+        matchReferee.setSignedAt(LocalDateTime.now());
+        match.setStatus(MatchStatus.FINALIZED);
+        // Cập nhật Bảng xếp hạng
+        updateStandings(match);
+
+        // Chốt Thống kê Vận động viên (Cộng số trận ra sân)
+        finalizePlayerStatistics(match);
+
+        // Lưu lại Ghi chú của Trọng tài (Tùy chọn)
+        if (request != null && request.getNote() != null && !request.getNote().isBlank()) {
+            MatchEvent event = MatchEvent.builder()
+                    .match(match)
+                    .eventType(EventType.MATCH_END)
+                    .eventTime("Kết thúc")
+                    .description("Biên bản đã chốt. Ghi chú: " + request.getNote())
+                    .build();
+            matchEventRepository.save(event);
+        }
+
+        // Lưu các thay đổi trạng thái
+        matchRepository.save(match);
+        matchRefereeRepository.save(matchReferee);
+
+        return "Chốt sổ biên bản thành công. Dữ liệu đã được khóa và tự động cập nhật lên BXH!";
+    }
+
+    /**
+     * Hàm phụ trợ: Tính toán và Cập nhật Bảng xếp hạng
+     */
+    private void updateStandings(Match match) {
+        Tournament tournament = match.getTournament();
+
+        // Trích xuất luật điểm số từ bảng Tournaments
+        float winPoints = tournament.getWinPoints() != null ? tournament.getWinPoints() : 3f;
+        float drawPoints = tournament.getDrawPoints() != null ? tournament.getDrawPoints() : 1f;
+        float lossPoints = tournament.getLossPoints() != null ? tournament.getLossPoints() : 0f;
+
+        int homeScore = match.getHomeScore() != null ? match.getHomeScore() : 0;
+        int awayScore = match.getAwayScore() != null ? match.getAwayScore() : 0;
+
+        // Xử lý cập nhật cho Đội Nhà
+        if (match.getHomeClub() != null && match.getGroupStage() != null) {
+            Standing homeStanding = standingRepository.findByGroupStageIdAndClubId(match.getGroupStage().getId(), match.getHomeClub().getId())
+                    .orElseGet(() -> buildNewStanding(tournament, match.getGroupStage(), match.getHomeClub()));
+
+            calculateTeamStanding(homeStanding, homeScore, awayScore, winPoints, drawPoints, lossPoints);
+            standingRepository.save(homeStanding);
+        }
+
+        // Xử lý cập nhật cho Đội Khách
+        if (match.getAwayClub() != null && match.getGroupStage() != null) {
+            Standing awayStanding = standingRepository.findByGroupStageIdAndClubId(match.getGroupStage().getId(), match.getAwayClub().getId())
+                    .orElseGet(() -> buildNewStanding(tournament, match.getGroupStage(), match.getAwayClub()));
+
+            calculateTeamStanding(awayStanding, awayScore, homeScore, winPoints, drawPoints, lossPoints);
+            standingRepository.save(awayStanding);
+        }
+    }
+
+    /**
+     * Hàm phụ trợ: Khởi tạo Entity Standing mới nếu đội chưa thi đấu trận nào
+     */
+    private Standing buildNewStanding(Tournament tournament, GroupStage groupStage, Club club) {
+        return Standing.builder()
+                .tournament(tournament)
+                .groupStage(groupStage)
+                .club(club)
+                .matchesPlayed(0).matchesWon(0).matchesDrawn(0).matchesLost(0)
+                .scoresFor(0).scoresAgainst(0).scoreDifference(0).totalPoints(0)
+                .build();
+    }
+
+    /**
+     * Hàm phụ trợ: Thuật toán cộng dồn điểm số và chỉ số phụ
+     */
+    private void calculateTeamStanding(Standing standing, int myScore, int opponentScore, float winPts, float drawPts, float lossPts) {
+        // Cộng chỉ số phụ
+        standing.setMatchesPlayed(standing.getMatchesPlayed() + 1);
+        standing.setScoresFor(standing.getScoresFor() + myScore);
+        standing.setScoresAgainst(standing.getScoresAgainst() + opponentScore);
+        standing.setScoreDifference(standing.getScoresFor() - standing.getScoresAgainst());
+
+        // Xét Thắng / Hòa / Thua để cộng điểm chính
+        if (myScore > opponentScore) {
+            standing.setMatchesWon(standing.getMatchesWon() + 1);
+            standing.setTotalPoints(standing.getTotalPoints() + (int) winPts);
+        } else if (myScore < opponentScore) {
+            standing.setMatchesLost(standing.getMatchesLost() + 1);
+            standing.setTotalPoints(standing.getTotalPoints() + (int) lossPts);
+        } else {
+            standing.setMatchesDrawn(standing.getMatchesDrawn() + 1);
+            standing.setTotalPoints(standing.getTotalPoints() + (int) drawPts);
+        }
+    }
+
+    /**
+     * Hàm phụ trợ: Cộng dồn số trận đã thi đấu cho từng cá nhân VĐV
+     */
+    private void finalizePlayerStatistics(Match match) {
+        List<MatchLineup> lineups = matchLineupRepository.findByMatchId(match.getId());
+        for (MatchLineup lineup : lineups) {
+            PlayerStatistic stats = playerStatisticRepository
+                    .findByTournamentIdAndAthleteId(match.getTournament().getId(), lineup.getAthlete().getId())
+                    .orElseGet(() -> PlayerStatistic.builder()
+                            .tournament(match.getTournament())
+                            .athlete(lineup.getAthlete())
+                            .club(lineup.getClub())
+                            .matchesPlayed(0).scores(0).assists(0).fouls(0).mvpCount(0)
+                            .build());
+
+            stats.setMatchesPlayed(stats.getMatchesPlayed() + 1);
+            playerStatisticRepository.save(stats);
         }
     }
 }
