@@ -2,6 +2,7 @@ package com.example.tournament.controller.referee;
 
 import com.example.tournament.payload.request.referee.ChangeMatchStatusRequest;
 import com.example.tournament.payload.request.referee.ConfirmLineupRequest;
+import com.example.tournament.payload.request.referee.MatchEventRequest;
 import com.example.tournament.payload.request.referee.RefereeMatchRequest;
 import com.example.tournament.payload.response.ApiResponse;
 import com.example.tournament.payload.response.referee.MatchDetailResponse;
@@ -89,6 +90,26 @@ public class RefereeController {
         Long refereeId = userDetails.getUser().getId();
 
         String message = refereeService.changeMatchStatus(refereeId, matchId, request);
+
+        ApiResponse<String> response = ApiResponse.<String>builder()
+                .code(HttpStatus.OK.value())
+                .message(message)
+                .result(null)
+                .build();
+
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/matches/{id}/events")
+    public ResponseEntity<ApiResponse<String>> recordMatchEvent(
+            @PathVariable("id") Long matchId,
+            @RequestBody @Valid MatchEventRequest request) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        Long refereeId = userDetails.getUser().getId();
+
+
+        String message = refereeService.recordMatchEvent(refereeId, matchId, request);
 
         ApiResponse<String> response = ApiResponse.<String>builder()
                 .code(HttpStatus.OK.value())
