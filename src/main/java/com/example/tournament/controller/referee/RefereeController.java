@@ -1,9 +1,6 @@
 package com.example.tournament.controller.referee;
 
-import com.example.tournament.payload.request.referee.ChangeMatchStatusRequest;
-import com.example.tournament.payload.request.referee.ConfirmLineupRequest;
-import com.example.tournament.payload.request.referee.MatchEventRequest;
-import com.example.tournament.payload.request.referee.RefereeMatchRequest;
+import com.example.tournament.payload.request.referee.*;
 import com.example.tournament.payload.response.ApiResponse;
 import com.example.tournament.payload.response.referee.MatchDetailResponse;
 import com.example.tournament.payload.response.referee.RefereeAssignedMatchResponse;
@@ -113,6 +110,29 @@ public class RefereeController {
 
         ApiResponse<String> response = ApiResponse.<String>builder()
                 .code(HttpStatus.OK.value())
+                .message(message)
+                .result(null)
+                .build();
+
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/matches/{id}/finalize")
+    public ResponseEntity<ApiResponse<String>> finalizeMatch(
+            @PathVariable("id") Long matchId,
+            @RequestBody(required = false) FinalizeMatchRequest request) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        Long refereeId = userDetails.getUser().getId();
+
+        if (request == null) {
+            request = new FinalizeMatchRequest();
+        }
+
+        String message = refereeService.finalizeMatch(refereeId, matchId, request);
+
+        ApiResponse<String> response = ApiResponse.<String>builder()
+                .code(200)
                 .message(message)
                 .result(null)
                 .build();

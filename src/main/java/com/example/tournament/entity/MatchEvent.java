@@ -39,7 +39,7 @@ public class MatchEvent {
     @Column(name = "event_type", nullable = false, length = 50)
     private EventType eventType;
 
-    @Column(name = "event_time", length = 20)
+    @Column(name = "event_time", length = 100)
     private String eventTime;
 
     @Column(columnDefinition = "TEXT")
