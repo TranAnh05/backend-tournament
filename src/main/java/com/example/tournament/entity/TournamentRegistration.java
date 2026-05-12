@@ -52,4 +52,7 @@ public class TournamentRegistration {
 
     @Column(name = "reviewed_at")
     private LocalDateTime reviewedAt;
+
+    @Column(name = "reviewed_by")
+    private String reviewedBy;
 }
