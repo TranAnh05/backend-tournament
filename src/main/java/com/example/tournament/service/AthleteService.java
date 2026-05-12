@@ -6,6 +6,7 @@ import com.example.tournament.entity.ClubMember;
 import com.example.tournament.entity.User;
 import com.example.tournament.enums.ClubRole;
 import com.example.tournament.enums.CommonStatus;
+import com.example.tournament.enums.HealthStatus;
 import com.example.tournament.enums.JoinStatus;
 import com.example.tournament.exception.custom.AppException;
 import com.example.tournament.payload.request.athlete.ApplyToClubRequest;
@@ -112,7 +113,6 @@ public class AthleteService {
     public AthleteApplicationResponse applyToClub(ApplyToClubRequest request) {
         Athlete athlete = getCurrentAthlete();
 
-        // Kiểm tra đã có đơn PENDING hoặc APPROVED tại bất kỳ CLB nào chưa
         boolean hasActiveApplication = clubMemberRepository
                 .findFirstByAthleteAndJoinStatusIn(athlete, List.of(JoinStatus.PENDING, JoinStatus.APPROVED))
                 .isPresent();
@@ -175,11 +175,28 @@ public class AthleteService {
         return mapToProfileResponse(athlete);
     }
 
-    // ── 6. Cập nhật hồ sơ VĐV đang đăng nhập ────────────────────────────────
+    // ── 6. Cập nhật hồ sơ VĐV — UPSERT (tạo mới nếu chưa có record) ─────────
     @Transactional
     public AthleteProfileResponse updateMyProfile(UpdateAthleteProfileRequest request) {
-        Athlete athlete = getCurrentAthlete();
-        User user = athlete.getUser();
+        User user = getCurrentUser();
+
+        // Upsert: tìm athlete, nếu chưa có thì tạo mới
+        Athlete athlete = athleteRepository.findByUser(user)
+                .orElseGet(() -> {
+                    // Validate bắt buộc CCCD và ngày sinh khi tạo mới
+                    if (request.getIdentityNumber() == null || request.getIdentityNumber().isBlank()) {
+                        throw new AppException(HttpStatus.BAD_REQUEST, "Số CCCD là bắt buộc khi tạo hồ sơ lần đầu");
+                    }
+                    if (request.getDateOfBirth() == null) {
+                        throw new AppException(HttpStatus.BAD_REQUEST, "Ngày sinh là bắt buộc khi tạo hồ sơ lần đầu");
+                    }
+                    return Athlete.builder()
+                            .user(user)
+                            .identityNumber(request.getIdentityNumber().trim())
+                            .dateOfBirth(request.getDateOfBirth())
+                            .healthStatus(HealthStatus.FIT)
+                            .build();
+                });
 
         // Cập nhật thông tin User
         if (request.getFullName() != null && !request.getFullName().isBlank()) {
@@ -189,7 +206,7 @@ public class AthleteService {
             user.setPhoneNumber(request.getPhoneNumber());
         }
 
-        // Cập nhật CCCD - kiểm tra trùng với người khác
+        // Cập nhật CCCD — kiểm tra trùng với người khác
         if (request.getIdentityNumber() != null && !request.getIdentityNumber().isBlank()) {
             String newId = request.getIdentityNumber().trim();
             if (!newId.equals(athlete.getIdentityNumber())) {
@@ -205,7 +222,7 @@ public class AthleteService {
             athlete.setDateOfBirth(request.getDateOfBirth());
         }
 
-        // Cập nhật các trường athlete khác
+        // Cập nhật các trường khác
         if (request.getPreferredPosition() != null) {
             athlete.setPreferredPosition(request.getPreferredPosition());
         }
@@ -226,7 +243,6 @@ public class AthleteService {
     private AthleteProfileResponse mapToProfileResponse(Athlete athlete) {
         User user = athlete.getUser();
 
-        // Tìm CLB hiện tại (APPROVED)
         String currentClubName = clubMemberRepository
                 .findFirstByAthleteAndJoinStatusIn(athlete, List.of(JoinStatus.APPROVED))
                 .map(cm -> cm.getClub().getName())
