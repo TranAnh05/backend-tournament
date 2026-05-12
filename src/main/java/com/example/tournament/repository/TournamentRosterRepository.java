@@ -18,4 +18,6 @@ public interface TournamentRosterRepository extends JpaRepository<TournamentRost
     void deleteByTournamentAndClub(Tournament tournament, Club club);
 
     List<TournamentRoster> findByTournamentIdAndClubId(Long tournamentId, Long clubId);
+
+    long countByTournamentIdAndClubId(Long tournamentId, Long clubId);
 }

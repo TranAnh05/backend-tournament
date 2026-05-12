@@ -2,10 +2,12 @@ package com.example.tournament.controller.Tournament;
 
 
 import com.example.tournament.enums.RegistrationStatus;
+import com.example.tournament.payload.request.Tournament.RejectRegistrationRequest;
 import com.example.tournament.payload.response.ApiResponse;
 import com.example.tournament.payload.response.Tournament.RegistrationDetailResponse;
 import com.example.tournament.payload.response.Tournament.TournamentRegistrationResponse;
 import com.example.tournament.service.TournamentRegistrationService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -59,6 +61,38 @@ public class TournamentRegistrationController {
                         .code(200)
                         .message("Lấy chi tiết đơn đăng ký thành công")
                         .result(result)
+                        .build()
+        );
+    }
+
+    @PatchMapping("/{regId}/approve")
+    @PreAuthorize("hasRole('ORGANIZER')") // Chỉ Ban tổ chức mới được duyệt
+    public ResponseEntity<ApiResponse<String>> approveRegistration(
+            @PathVariable Long tournamentId,
+            @PathVariable Long regId) {
+
+        registrationService.approveRegistration(tournamentId, regId);
+
+        return ResponseEntity.ok(
+                ApiResponse.<String>builder()
+                        .code(200)
+                        .message("Đã duyệt đơn đăng ký thành công!")
+                        .build()
+        );
+    }
+    @PatchMapping("/{regId}/reject")
+    @PreAuthorize("hasRole('ORGANIZER')")
+    public ResponseEntity<ApiResponse<String>> rejectRegistration(
+            @PathVariable Long tournamentId,
+            @PathVariable Long regId,
+            @Valid @RequestBody RejectRegistrationRequest request) {
+
+        registrationService.rejectRegistration(tournamentId, regId, request.getReason());
+
+        return ResponseEntity.ok(
+                ApiResponse.<String>builder()
+                        .code(200)
+                        .message("Đã từ chối đơn đăng ký!")
                         .build()
         );
     }
