@@ -25,5 +25,8 @@ public class RosterResponse {
         private String role;
         private String status;
         private String healthStatus;
+        // Nếu VĐV đang bị khóa ở giải khác thì 2 field này có giá trị
+        private Long lockedInTournamentId;
+        private String lockedInTournamentName;
     }
 }

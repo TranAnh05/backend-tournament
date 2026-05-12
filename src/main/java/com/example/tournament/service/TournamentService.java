@@ -102,6 +102,14 @@ public class TournamentService {
     public List<RegistrationResponse> getMyRegistrations() {
         Club club = getMyClub();
         return registrationRepository.findByClub(club).stream()
+                .filter(r -> {
+                    try {
+                        r.getTournament().getName(); // force init proxy
+                        return true;
+                    } catch (jakarta.persistence.EntityNotFoundException e) {
+                        return false; // bỏ qua tournament đã bị xóa khỏi DB
+                    }
+                })
                 .map(r -> RegistrationResponse.builder()
                         .id(r.getId())
                         .tournamentId(r.getTournament().getId())
@@ -115,7 +123,6 @@ public class TournamentService {
                         .build())
                 .collect(Collectors.toList());
     }
-
     //kiet them phan nay
     // POST /tournaments/{tournamentId}/register
     public RegistrationResponse registerTournament(Long tournamentId, String homeKitColor, String awayKitColor, String financialProofUrl) {
@@ -505,7 +512,8 @@ public class TournamentService {
                 .orElseThrow(() -> new AppException(HttpStatus.NOT_FOUND, "Khong tim thay giai dau"));
 
         registrationRepository.findByTournamentIdAndClub(tournamentId, club)
-                .filter(r -> r.getStatus() == RegistrationStatus.APPROVED)
+                .filter(r -> r.getStatus() == RegistrationStatus.APPROVED
+                        || r.getStatus() == RegistrationStatus.PENDING)
                 .orElseThrow(() -> new AppException(HttpStatus.FORBIDDEN,
                         "CLB chua duoc duyet tham gia giai dau nay"));
 
