@@ -13,6 +13,7 @@ public interface StandingRepository extends JpaRepository<Standing, Long> {
     Optional<Standing> findByTournamentIdAndClub(Long tournamentId, Club club);
     List<Standing> findByGroupStageIdOrderByTotalPointsDesc(Long groupStageId);
 
+    List<Standing> findByGroupStageId(Long groupStageId);
     // REFEREE
     Optional<Standing> findByGroupStageIdAndClubId(Long groupStageId, Long clubId);
 }

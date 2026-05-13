@@ -16,6 +16,8 @@ import com.example.tournament.repository.*;
 import com.example.tournament.security.userdetail.CustomUserDetails;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -586,6 +588,35 @@ public class TournamentService {
                         .build())
                 .collect(Collectors.toList());
     }
+    public Page<TournamentGroupReadyResponse> getTournamentsReadyForGrouping(int page, int size) {
+        // 1. Khởi tạo đối tượng phân trang (Sắp xếp giải mới nhất lên đầu)
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
 
+        // 2. Query lấy giải đấu CÓ PHÂN TRANG
+        Page<Tournament> tournamentPage = tournamentRepository.findByStatus(TournamentStatus.REGISTRATION_CLOSE, pageable);
+
+        return tournamentPage.map(t -> {
+            // Lấy danh sách đăng ký đã duyệt
+            List<TournamentRegistration> approvedRegs = registrationRepository
+                    .findAllByTournamentIdAndStatus(t.getId(), RegistrationStatus.APPROVED);
+
+            // Map sang DTO CLB
+            List<ClubSimpleResponse> clubResponses = approvedRegs.stream()
+                    .map(reg -> ClubSimpleResponse.builder()
+                            .id(reg.getClub().getId())
+                            .name(reg.getClub().getName())
+                            .logo(reg.getClub().getLogoUrl())
+                            .build())
+                    .collect(Collectors.toList());
+
+            // Build DTO Giải đấu (Lưu ý chỉ có 1 tham số truyền vào .approvedClubs)
+            return TournamentGroupReadyResponse.builder()
+                    .id(t.getId())
+                    .name(t.getName())
+                    .sport(t.getSport().getName()) // Nếu Entity Sport của bạn chỉ là String, hãy đổi thành t.getSport()
+                    .approvedClubs(clubResponses)
+                    .build();
+        });
+    }
 }
 
