@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -43,4 +44,18 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     boolean existsByPhoneNumber(String phoneNumber);
     // ===========================================================================
+
+
+    // Lấy danh sách Trọng tài rảnh rỗi trong một khoảng thời gian
+    @Query("SELECT u FROM User u " +
+            "JOIN u.userRoles ur JOIN ur.role r " +
+            "WHERE r.roleCode = 'REFEREE' " + // Đảm bảo roleCode của bạn trong Enum là REFEREE nhé
+            "AND u.id NOT IN (" +
+            "   SELECT mr.referee.id FROM MatchReferee mr JOIN mr.match m " +
+            "   WHERE m.scheduledTime BETWEEN :startTime AND :endTime" +
+            ")")
+    List<User> findAvailableReferees(
+            @Param("startTime") LocalDateTime startTime,
+            @Param("endTime") LocalDateTime endTime
+    );
 }

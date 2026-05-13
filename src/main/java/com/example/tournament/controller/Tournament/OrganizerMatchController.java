@@ -1,8 +1,10 @@
 package com.example.tournament.controller.Tournament;
 
 
+import com.example.tournament.payload.request.Tournament.AssignRefereeRequest;
 import com.example.tournament.payload.response.ApiResponse;
 import com.example.tournament.payload.response.Tournament.OrganizerMatchResponse;
+import com.example.tournament.payload.response.Tournament.emptyscheduleRefereeResponse;
 import com.example.tournament.payload.response.club.MatchResponse;
 import com.example.tournament.service.OrganizerMatchService;
 import com.example.tournament.service.ScheduleService;
@@ -49,4 +51,53 @@ public class OrganizerMatchController {
                         .build()
         );
     }
+
+    @GetMapping("matches/{matchId}/available-referees")
+    public ResponseEntity<ApiResponse<List<emptyscheduleRefereeResponse>>> getAvailableReferees(
+            @PathVariable Long matchId) {
+
+        List<emptyscheduleRefereeResponse> freeReferees = matchService.getAvailableRefereesForMatch(matchId);
+
+        return ResponseEntity.ok(
+                ApiResponse.<List<emptyscheduleRefereeResponse>>builder()
+                        .code(200)
+                        .message("Lấy danh sách trọng tài trống lịch thành công!")
+                        .result(freeReferees)
+                        .build()
+        );
+
+
+    }
+
+    @PostMapping("matches/{matchId}/referees")
+    public ResponseEntity<ApiResponse<String>> assignReferee(
+            @PathVariable Long matchId,
+            @RequestBody AssignRefereeRequest request) {
+
+        matchService.assignRefereeToMatch(matchId, request);
+
+        return ResponseEntity.ok(
+                ApiResponse.<String>builder()
+                        .code(200)
+                        .message("Phân công trọng tài thành công!")
+                        .build()
+        );
+    }
+
+//    // ✨ API Gỡ trọng tài khỏi trận đấu (Nếu BTC chọn nhầm)
+//    @DeleteMapping("/{matchId}/referees/{refereeId}")
+//    public ResponseEntity<ApiResponse<String>> removeReferee(
+//            @PathVariable Long matchId,
+//            @PathVariable Long refereeId) {
+//
+//        matchService.removeRefereeFromMatch(matchId, refereeId); // Bạn viết thêm hàm delete tương ứng nhé
+//
+//        return ResponseEntity.ok(
+//                ApiResponse.<String>builder()
+//                        .code(200)
+//                        .message("Đã gỡ trọng tài khỏi trận đấu")
+//                        .build()
+//        );
+//    }
+
 }
