@@ -1,8 +1,11 @@
 package com.example.tournament.controller.athlete;
 
 import com.example.tournament.payload.request.athlete.ApplyToClubRequest;
+import com.example.tournament.payload.request.athlete.AthleteRegisterRequest;       // ← THÊM
+import com.example.tournament.payload.request.athlete.UpdateAthleteProfileRequest;
 import com.example.tournament.payload.response.ApiResponse;
 import com.example.tournament.payload.response.athlete.*;
+import com.example.tournament.service.AthleteRegistrationService;                   // ← THÊM
 import com.example.tournament.service.AthleteService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +22,21 @@ import java.util.List;
 public class AthleteController {
 
     private final AthleteService athleteService;
+    private final AthleteRegistrationService athleteRegistrationService;            // ← THÊM
+
+    // ── PUBLIC: Đăng ký tài khoản VĐV ───────────────────────────────────────
+    // POST /api/v1/athlete/register
+    @PostMapping("/register")
+    public ResponseEntity<ApiResponse<Void>> register(
+            @Valid @RequestBody AthleteRegisterRequest request) {
+        athleteRegistrationService.register(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(
+                ApiResponse.<Void>builder()
+                        .code(HttpStatus.CREATED.value())
+                        .message("Đăng ký tài khoản VĐV thành công")
+                        .build()
+        );
+    }
 
     // ── PUBLIC: Lấy danh sách tất cả CLB đang ACTIVE ────────────────────────
     // GET /api/v1/athlete/clubs
@@ -62,7 +80,7 @@ public class AthleteController {
         );
     }
 
-    // ── ATHLETE: Lịch sử ứng tuyển của VĐV đang đăng nhập ───────────────────
+    // ── ATHLETE: Lịch sử ứng tuyển ──────────────────────────────────────────
     // GET /api/v1/athlete/my-applications
     @GetMapping("/my-applications")
     @PreAuthorize("hasRole('ATHLETE')")
@@ -72,6 +90,35 @@ public class AthleteController {
                         .code(200)
                         .message("Lấy lịch sử ứng tuyển thành công")
                         .result(athleteService.getMyApplications())
+                        .build()
+        );
+    }
+
+    // ── ATHLETE: Lấy hồ sơ cá nhân ──────────────────────────────────────────
+    // GET /api/v1/athlete/my-profile
+    @GetMapping("/my-profile")
+    @PreAuthorize("hasRole('ATHLETE')")
+    public ResponseEntity<ApiResponse<AthleteProfileResponse>> getMyProfile() {
+        return ResponseEntity.ok(
+                ApiResponse.<AthleteProfileResponse>builder()
+                        .code(200)
+                        .message("Lấy hồ sơ thành công")
+                        .result(athleteService.getMyProfile())
+                        .build()
+        );
+    }
+
+    // ── ATHLETE: Cập nhật hồ sơ cá nhân ─────────────────────────────────────
+    // PUT /api/v1/athlete/my-profile
+    @PutMapping("/my-profile")
+    @PreAuthorize("hasRole('ATHLETE')")
+    public ResponseEntity<ApiResponse<AthleteProfileResponse>> updateMyProfile(
+            @Valid @RequestBody UpdateAthleteProfileRequest request) {
+        return ResponseEntity.ok(
+                ApiResponse.<AthleteProfileResponse>builder()
+                        .code(200)
+                        .message("Cập nhật hồ sơ thành công")
+                        .result(athleteService.updateMyProfile(request))
                         .build()
         );
     }

@@ -8,9 +8,7 @@ import com.example.tournament.enums.RosterRole;
 import com.example.tournament.exception.custom.AppException;
 import com.example.tournament.exception.custom.ResourceNotFoundException;
 import com.example.tournament.payload.request.club.*;
-import com.example.tournament.payload.response.club.ClubMemberResponse;
-import com.example.tournament.payload.response.club.ClubResponse;
-import com.example.tournament.payload.response.club.TournamentHistoryResponse;
+import com.example.tournament.payload.response.club.*;
 import com.example.tournament.repository.*;
 import com.example.tournament.security.userdetail.CustomUserDetails;
 import lombok.RequiredArgsConstructor;
@@ -22,13 +20,14 @@ import org.springframework.transaction.annotation.Transactional;
 import com.example.tournament.payload.response.club.TournamentHistoryResponse;
 import com.example.tournament.repository.StandingRepository;
 import com.example.tournament.repository.TournamentRegistrationRepository;
+
+import java.util.Map;
 import java.util.stream.Collectors;
 import com.example.tournament.entity.TournamentRoster;
 import com.example.tournament.enums.RegistrationStatus;
 import com.example.tournament.enums.RosterRole;
 import com.example.tournament.enums.RosterStatus;
 import com.example.tournament.payload.request.club.RosterRequest;
-import com.example.tournament.payload.response.club.RosterResponse;
 import com.example.tournament.repository.TournamentRepository;
 import com.example.tournament.repository.TournamentRosterRepository;
 
@@ -103,11 +102,18 @@ public class ClubService {
     }
 
     private TournamentHistoryResponse toTournamentHistory(TournamentRegistration reg, Club club) {
+        Tournament tournament;
+        try {
+            tournament = reg.getTournament();
+            tournament.getName(); // force init proxy — nếu tournament bị xóa sẽ throw ở đây
+        } catch (jakarta.persistence.EntityNotFoundException e) {
+            return null; // bỏ qua registration này
+        }
+
         Standing standing = standingRepository
-                .findByTournamentIdAndClub(reg.getTournament().getId(), club)
+                .findByTournamentIdAndClub(tournament.getId(), club)
                 .orElse(null);
 
-        // Tính ranking trong bảng
         Integer ranking = null;
         if (standing != null) {
             List<Standing> allStandings = standing.getGroupStage() != null
@@ -120,10 +126,11 @@ public class ClubService {
                 }
             }
         }
+
         return TournamentHistoryResponse.builder()
-                .tournamentId(reg.getTournament().getId())
-                .tournamentName(reg.getTournament().getName())
-                .season(reg.getTournament().getName())
+                .tournamentId(tournament.getId())
+                .tournamentName(tournament.getName())
+                .season(tournament.getName())
                 .registrationStatus(reg.getStatus().name())
                 .matchesPlayed(standing != null ? standing.getMatchesPlayed() : 0)
                 .matchesWon(standing != null ? standing.getMatchesWon() : 0)
@@ -133,7 +140,7 @@ public class ClubService {
                 .ranking(ranking)
                 .build();
     }
-        // 1. Tạo hồ sơ CLB
+    // 1. Tạo hồ sơ CLB
     @Transactional
     public ClubResponse createClub(CreateClubRequest request) {
         User manager = getCurrentUser();
@@ -435,5 +442,50 @@ public class ClubService {
         rosterRepository.saveAll(rosters);
 
         return getMyRoster(tournamentId);
+    }
+    // ── Lấy danh sách đăng ký giải đấu của CLB hiện tại ─────────────────────
+    @Transactional(readOnly = true)
+    public List<RegistrationResponse> getMyRegistrations() {
+        Club club = getMyClub();
+        return registrationRepository.findByClub(club)
+                .stream()
+                .filter(reg -> {
+                    try {
+                        reg.getTournament().getName(); // kiểm tra tournament còn tồn tại không
+                        return true;
+                    } catch (jakarta.persistence.EntityNotFoundException e) {
+                        return false;
+                    }
+                })
+                .map(reg -> RegistrationResponse.builder()
+                        .id(reg.getId())
+                        .tournamentId(reg.getTournament().getId())
+                        .tournamentName(reg.getTournament().getName())
+                        .clubId(club.getId())
+                        .status(reg.getStatus().name())
+                        .homeKitColor(reg.getHomeKitColor())
+                        .awayKitColor(reg.getAwayKitColor())
+                        .appliedAt(reg.getAppliedAt() != null ? reg.getAppliedAt().toString() : null)
+                        .reviewedAt(reg.getReviewedAt() != null ? reg.getReviewedAt().toString() : null)
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Trả về map { athleteId → tên giải đang tham gia } cho các VĐV của CLB
+     * đã bị khóa ở giải khác (không tính giải tournamentId đang đăng ký).
+     * tournamentId = 0 nghĩa là đang đăng ký mới, chưa có id → lấy tất cả giải hiện có.
+     */
+    @Transactional(readOnly = true)
+    public Map<Long, String> getLockedAthletes(Long tournamentId) {
+        Club club = getMyClub();
+        return rosterRepository
+                .findByClubExcludingTournament(club, tournamentId)
+                .stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        r -> r.getAthlete().getId(),
+                        r -> r.getTournament().getName(),
+                        (a, b) -> a // nếu VĐV có trong nhiều giải, lấy giải đầu tiên
+                ));
     }
 }

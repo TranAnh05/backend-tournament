@@ -5,5 +5,6 @@ public enum MatchStatus {
     IN_PROGRESS,
     PAUSED,
     FINISHED,
-    CANCELED
+    CANCELED,
+    FINALIZED
 }

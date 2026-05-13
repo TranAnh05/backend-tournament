@@ -3,9 +3,7 @@ package com.example.tournament.controller.club;
 import com.example.tournament.enums.JoinStatus;
 import com.example.tournament.payload.request.club.*;
 import com.example.tournament.payload.response.ApiResponse;
-import com.example.tournament.payload.response.club.ClubMemberResponse;
-import com.example.tournament.payload.response.club.ClubResponse;
-import com.example.tournament.payload.response.club.RosterResponse;
+import com.example.tournament.payload.response.club.*;
 import com.example.tournament.service.ClubService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -13,10 +11,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-import com.example.tournament.payload.response.club.DisciplineResponse;
 import com.example.tournament.service.TournamentService;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/clubs")
@@ -176,6 +174,32 @@ public class ClubController {
                 .code(200)
                 .message("Chốt danh sách thi đấu thành công")
                 .result(clubService.submitRoster(tournamentId, request))
+                .build());
+    }
+    @GetMapping("/registrations/my")
+    @PreAuthorize("hasRole('CLUB_MANAGER')")
+    public ResponseEntity<ApiResponse<List<RegistrationResponse>>> getMyRegistrations() {
+        return ResponseEntity.ok(
+                ApiResponse.<List<RegistrationResponse>>builder()
+                        .code(200)
+                        .message("Lấy danh sách đăng ký giải đấu thành công")
+                        .result(clubService.getMyRegistrations())
+                        .build()
+        );
+    }
+
+    /**
+     * Trả về map athleteId → tên giải đang bị khóa,
+     * dùng khi CLB chọn VĐV lúc đăng ký giải mới (tournamentId là giải đang đăng ký).
+     */
+    @GetMapping("/me/members/conflicts")
+    @PreAuthorize("hasRole('CLUB_MANAGER')")
+    public ResponseEntity<ApiResponse<Map<Long, String>>> getLockedAthletes(
+            @RequestParam Long tournamentId) {
+        return ResponseEntity.ok(ApiResponse.<Map<Long, String>>builder()
+                .code(200)
+                .message("OK")
+                .result(clubService.getLockedAthletes(tournamentId))
                 .build());
     }
 }
