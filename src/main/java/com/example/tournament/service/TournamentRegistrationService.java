@@ -4,10 +4,12 @@ import com.example.tournament.entity.Tournament;
 import com.example.tournament.entity.TournamentRegistration;
 import com.example.tournament.entity.TournamentRoster;
 import com.example.tournament.enums.RegistrationStatus;
+import com.example.tournament.enums.TournamentStatus;
 import com.example.tournament.payload.response.Tournament.OrganizerRosterResponse;
 import com.example.tournament.payload.response.Tournament.RegistrationDetailResponse;
 import com.example.tournament.payload.response.Tournament.TournamentRegistrationResponse;
 import com.example.tournament.repository.TournamentRegistrationRepository;
+import com.example.tournament.repository.TournamentRepository;
 import com.example.tournament.repository.TournamentRosterRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -27,12 +29,24 @@ public class TournamentRegistrationService {
 
     private final TournamentRegistrationRepository registrationRepository;
     private final TournamentRosterRepository rosterRepository;
+
+    private final TournamentRepository tournamentRepository;
     // Inject thêm TournamentRepository nếu bạn muốn kiểm tra giải đấu có tồn tại không trước khi query
 
     public Page<TournamentRegistrationResponse> getRegistrationsByTournament(
             Long tournamentId,
             RegistrationStatus status,
             Pageable pageable) {
+
+        // 1. Kiểm tra giải đấu có tồn tại không
+        Tournament tournament = tournamentRepository.findById(tournamentId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy giải đấu với ID: " + tournamentId));
+
+        // ✨ 2. KIỂM TRA ĐÚNG YÊU CẦU NGHIỆP VỤ: GIẢI ĐẤU PHẢI ĐANG MỞ ĐĂNG KÝ
+        // (Trung thay thế TournamentStatus.OPEN bằng Enum thực tế trong project của bạn nhé, ví dụ REGISTRATION_OPEN)
+        if (tournament.getStatus() != TournamentStatus.REGISTRATION_OPEN) {
+            throw new RuntimeException("Giải đấu hiện không ở trạng thái mở đăng ký. Không thể lấy danh sách!");
+        }
 
         Page<TournamentRegistration> registrations;
 

@@ -1,17 +1,20 @@
 package com.example.tournament.controller.Tournament;
 
+import com.example.tournament.entity.Club;
 import com.example.tournament.enums.RoleCode;
+import com.example.tournament.payload.request.Tournament.KnockoutDrawRequest;
 import com.example.tournament.payload.request.Tournament.TournamentRequest;
 import com.example.tournament.payload.request.club.SubmitRosterRequest;
 import com.example.tournament.payload.response.ApiResponse;
-import com.example.tournament.payload.response.Tournament.TournamentDetailResponse;
-import com.example.tournament.payload.response.Tournament.TournamentResponse;
-import com.example.tournament.payload.response.Tournament.TournamentSelectResponse;
+import com.example.tournament.payload.response.Tournament.*;
 import com.example.tournament.payload.response.admin.SportResponse;
 import com.example.tournament.payload.response.admin.VenueResponse;
 import com.example.tournament.payload.response.club.DisciplineResponse;
 import com.example.tournament.payload.response.club.RegistrationResponse;
+import com.example.tournament.repository.ClubRepository;
 import com.example.tournament.security.jwt.JwtTokenProvider;
+import com.example.tournament.service.GroupDrawService;
+import com.example.tournament.service.KnockoutService;
 import com.example.tournament.service.TournamentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +29,7 @@ import com.example.tournament.payload.request.club.RegisterTournamentRequest;
 
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/tournaments")
@@ -33,6 +37,9 @@ import java.util.List;
 public class TournamentController {
     private final TournamentService tournamentService;
     private final JwtTokenProvider jwtTokenProvider;
+    private final ClubRepository clubRepository;
+    private final KnockoutService knockoutService;
+    private final GroupDrawService groupDrawService;
 
 
     @GetMapping
@@ -263,5 +270,66 @@ public class TournamentController {
         );
     }
 
+    @GetMapping("/ready-for-grouping")
+    @PreAuthorize("hasRole('ORGANIZER')")
+    public ResponseEntity<ApiResponse<Page<TournamentGroupReadyResponse>>> getReadyForGrouping(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        return ResponseEntity.ok(
+                ApiResponse.<Page<TournamentGroupReadyResponse>>builder()
+                        .code(200)
+                        .message("Lấy danh sách giải đấu sẵn sàng chia bảng thành công")
+                        .result(tournamentService.getTournamentsReadyForGrouping(page , size))
+                        .build()
+        );
+    }
 
+    @PostMapping("/{tournamentId}/knockout-draw")
+    @PreAuthorize("hasRole('ORGANIZER')")
+    public ResponseEntity<ApiResponse<String>> drawKnockoutStage(
+            @PathVariable Long tournamentId,
+            @Valid @RequestBody KnockoutDrawRequest request) {
+
+        // Chỉ truyền đúng ID giải và danh sách ID các đội xuống Service
+        knockoutService.generateFirstKnockoutRound(tournamentId, request.getQualifiedClubIds());
+
+        return ResponseEntity.ok(
+                ApiResponse.<String>builder()
+                        .code(200)
+                        .message("Tạo lịch thi đấu vòng Knockout thành công!")
+                        .build()
+        );
+    }
+
+    @PostMapping("/{tournamentId}/draw")
+    @PreAuthorize("hasRole('ORGANIZER')")
+    public ResponseEntity<ApiResponse<String>> executeDraw(
+            @PathVariable Long tournamentId,
+            @RequestBody Map<String, Integer> request) {
+
+        int numberOfGroups = request.getOrDefault("numberOfGroups", 2);
+        groupDrawService.executeGroupDraw(tournamentId, numberOfGroups);
+
+        return ResponseEntity.ok(
+                ApiResponse.<String>builder()
+                        .code(200)
+                        .message("Bốc thăm chia bảng thành công!")
+                        .build()
+        );
+    }
+    @GetMapping("/{tournamentId}/groups")
+    public ResponseEntity<ApiResponse<List<GroupStageResponse>>> getTournamentGroups(
+            @PathVariable Long tournamentId) {
+
+        List<GroupStageResponse> result = groupDrawService.getGroupsWithTeams(tournamentId);
+
+        return ResponseEntity.ok(
+                ApiResponse.<List<GroupStageResponse>>builder()
+                        .code(200)
+                        .message("Lấy danh sách bảng đấu thành công")
+                        .result(result)
+                        .build()
+        );
+    }
 }

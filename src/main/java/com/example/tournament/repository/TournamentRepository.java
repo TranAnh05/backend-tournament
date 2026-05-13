@@ -95,5 +95,7 @@ public interface TournamentRepository extends JpaRepository<Tournament, Long> {
 
     List<Tournament> findByStatus(TournamentStatus status);
 
+    Page<Tournament> findByStatus(TournamentStatus status, Pageable pageable);
+
 
 }

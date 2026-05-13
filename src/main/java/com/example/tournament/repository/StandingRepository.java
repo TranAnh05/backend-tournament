@@ -12,4 +12,6 @@ public interface StandingRepository extends JpaRepository<Standing, Long> {
     List<Standing> findByClub(Club club);
     Optional<Standing> findByTournamentIdAndClub(Long tournamentId, Club club);
     List<Standing> findByGroupStageIdOrderByTotalPointsDesc(Long groupStageId);
+
+    List<Standing> findByGroupStageId(Long groupStageId);
 }

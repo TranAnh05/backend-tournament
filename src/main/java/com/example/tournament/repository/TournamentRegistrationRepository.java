@@ -23,6 +23,8 @@ public interface TournamentRegistrationRepository extends JpaRepository<Tourname
     // Lấy đội đăng ký của một giải đấu theo trạng thái (VD: Lọc ra các đội đang PENDING)
     Page<TournamentRegistration> findByTournamentIdAndStatus(Long tournamentId, RegistrationStatus status, Pageable pageable);
 
+    List<TournamentRegistration> findAllByTournamentIdAndStatus(Long tournamentId, RegistrationStatus status);
+
     long countByTournamentIdAndStatus(Long tournamentId, RegistrationStatus status);
     Optional<TournamentRegistration> findByIdAndTournamentId(Long id, Long tournamentId);
 }
