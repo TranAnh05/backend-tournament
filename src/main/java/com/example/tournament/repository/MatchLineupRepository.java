@@ -12,6 +12,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface MatchLineupRepository extends JpaRepository<MatchLineup, Long> {
@@ -37,5 +38,8 @@ public interface MatchLineupRepository extends JpaRepository<MatchLineup, Long> 
             Long clubId,
             LineupType lineupType,
             Boolean isConfirmed);
+
+    Optional<MatchLineup> findByMatchIdAndAthleteId(Long matchId, Long athleteId);
+    List<MatchLineup> findByMatchId(Long matchId);
     // ==========================================
 }

@@ -6,14 +6,18 @@ import com.example.tournament.entity.ClubMember;
 import com.example.tournament.entity.User;
 import com.example.tournament.enums.ClubRole;
 import com.example.tournament.enums.CommonStatus;
+import com.example.tournament.enums.HealthStatus;
 import com.example.tournament.enums.JoinStatus;
+import com.example.tournament.exception.custom.AppException;
 import com.example.tournament.payload.request.athlete.ApplyToClubRequest;
+import com.example.tournament.payload.request.athlete.UpdateAthleteProfileRequest;
 import com.example.tournament.payload.response.athlete.*;
 import com.example.tournament.repository.AthleteRepository;
 import com.example.tournament.repository.ClubMemberRepository;
 import com.example.tournament.repository.ClubRepository;
 import com.example.tournament.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,14 +38,14 @@ public class AthleteService {
     private User getCurrentUser() {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
         return userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng"));
+                .orElseThrow(() -> new AppException(HttpStatus.UNAUTHORIZED, "Không tìm thấy người dùng"));
     }
 
     // ── Helper: lấy Athlete từ User đang đăng nhập ──────────────────────────
     private Athlete getCurrentAthlete() {
         User user = getCurrentUser();
         return athleteRepository.findByUser(user)
-                .orElseThrow(() -> new RuntimeException("Hồ sơ vận động viên không tồn tại"));
+                .orElseThrow(() -> new AppException(HttpStatus.NOT_FOUND, "Hồ sơ vận động viên không tồn tại"));
     }
 
     // ── Helper: map Club → ClubPublicResponse ───────────────────────────────
@@ -73,7 +77,7 @@ public class AthleteService {
     // ── 2. Chi tiết một CLB + danh sách thành viên công khai ────────────────
     public ClubPublicDetailResponse getClubDetail(Long clubId) {
         Club club = clubRepository.findById(clubId)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy CLB với ID: " + clubId));
+                .orElseThrow(() -> new AppException(HttpStatus.NOT_FOUND, "Không tìm thấy CLB với ID: " + clubId));
 
         List<ClubMemberPublicResponse> members = clubMemberRepository
                 .findByClubAndJoinStatus(club, JoinStatus.APPROVED)
@@ -109,19 +113,19 @@ public class AthleteService {
     public AthleteApplicationResponse applyToClub(ApplyToClubRequest request) {
         Athlete athlete = getCurrentAthlete();
 
-        // Kiểm tra đã có đơn PENDING hoặc APPROVED tại bất kỳ CLB nào chưa
         boolean hasActiveApplication = clubMemberRepository
                 .findFirstByAthleteAndJoinStatusIn(athlete, List.of(JoinStatus.PENDING, JoinStatus.APPROVED))
                 .isPresent();
         if (hasActiveApplication) {
-            throw new RuntimeException("Bạn đã có đơn đang chờ duyệt hoặc đã là thành viên của một CLB. Vui lòng rời CLB hiện tại trước khi ứng tuyển.");
+            throw new AppException(HttpStatus.CONFLICT,
+                    "Bạn đã có đơn đang chờ duyệt hoặc đã là thành viên của một CLB. Vui lòng rời CLB hiện tại trước khi ứng tuyển.");
         }
 
         Club club = clubRepository.findById(request.getClubId())
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy CLB"));
+                .orElseThrow(() -> new AppException(HttpStatus.NOT_FOUND, "Không tìm thấy CLB"));
 
         if (club.getStatus() != CommonStatus.ACTIVE) {
-            throw new RuntimeException("CLB này hiện không nhận thành viên mới");
+            throw new AppException(HttpStatus.BAD_REQUEST, "CLB này hiện không nhận thành viên mới");
         }
 
         ClubMember newMember = ClubMember.builder()
@@ -163,5 +167,100 @@ public class AthleteService {
                         .leftDate(cm.getLeftDate())
                         .build())
                 .collect(Collectors.toList());
+    }
+
+    // ── 5. Lấy hồ sơ VĐV đang đăng nhập ─────────────────────────────────────
+    public AthleteProfileResponse getMyProfile() {
+        Athlete athlete = getCurrentAthlete();
+        return mapToProfileResponse(athlete);
+    }
+
+    // ── 6. Cập nhật hồ sơ VĐV — UPSERT (tạo mới nếu chưa có record) ─────────
+    @Transactional
+    public AthleteProfileResponse updateMyProfile(UpdateAthleteProfileRequest request) {
+        User user = getCurrentUser();
+
+        // Upsert: tìm athlete, nếu chưa có thì tạo mới
+        Athlete athlete = athleteRepository.findByUser(user)
+                .orElseGet(() -> {
+                    // Validate bắt buộc CCCD và ngày sinh khi tạo mới
+                    if (request.getIdentityNumber() == null || request.getIdentityNumber().isBlank()) {
+                        throw new AppException(HttpStatus.BAD_REQUEST, "Số CCCD là bắt buộc khi tạo hồ sơ lần đầu");
+                    }
+                    if (request.getDateOfBirth() == null) {
+                        throw new AppException(HttpStatus.BAD_REQUEST, "Ngày sinh là bắt buộc khi tạo hồ sơ lần đầu");
+                    }
+                    return Athlete.builder()
+                            .user(user)
+                            .identityNumber(request.getIdentityNumber().trim())
+                            .dateOfBirth(request.getDateOfBirth())
+                            .healthStatus(HealthStatus.FIT)
+                            .build();
+                });
+
+        // Cập nhật thông tin User
+        if (request.getFullName() != null && !request.getFullName().isBlank()) {
+            user.setFullName(request.getFullName());
+        }
+        if (request.getPhoneNumber() != null) {
+            user.setPhoneNumber(request.getPhoneNumber());
+        }
+
+        // Cập nhật CCCD — kiểm tra trùng với người khác
+        if (request.getIdentityNumber() != null && !request.getIdentityNumber().isBlank()) {
+            String newId = request.getIdentityNumber().trim();
+            if (!newId.equals(athlete.getIdentityNumber())) {
+                if (athleteRepository.existsByIdentityNumber(newId)) {
+                    throw new AppException(HttpStatus.CONFLICT, "Số CCCD này đã được đăng ký bởi tài khoản khác");
+                }
+                athlete.setIdentityNumber(newId);
+            }
+        }
+
+        // Cập nhật ngày sinh
+        if (request.getDateOfBirth() != null) {
+            athlete.setDateOfBirth(request.getDateOfBirth());
+        }
+
+        // Cập nhật các trường khác
+        if (request.getPreferredPosition() != null) {
+            athlete.setPreferredPosition(request.getPreferredPosition());
+        }
+        if (request.getPreferredNumber() != null) {
+            athlete.setPreferredNumber(request.getPreferredNumber());
+        }
+        if (request.getPortraitUrl() != null) {
+            athlete.setPortraitUrl(request.getPortraitUrl());
+        }
+
+        userRepository.save(user);
+        athleteRepository.save(athlete);
+
+        return mapToProfileResponse(athlete);
+    }
+
+    // ── Helper: map Athlete → AthleteProfileResponse ─────────────────────────
+    private AthleteProfileResponse mapToProfileResponse(Athlete athlete) {
+        User user = athlete.getUser();
+
+        String currentClubName = clubMemberRepository
+                .findFirstByAthleteAndJoinStatusIn(athlete, List.of(JoinStatus.APPROVED))
+                .map(cm -> cm.getClub().getName())
+                .orElse(null);
+
+        return AthleteProfileResponse.builder()
+                .athleteId(athlete.getId())
+                .fullName(user.getFullName())
+                .email(user.getEmail())
+                .phoneNumber(user.getPhoneNumber())
+                .avatarUrl(user.getAvatarUrl())
+                .identityNumber(athlete.getIdentityNumber())
+                .dateOfBirth(athlete.getDateOfBirth())
+                .portraitUrl(athlete.getPortraitUrl())
+                .preferredNumber(athlete.getPreferredNumber())
+                .preferredPosition(athlete.getPreferredPosition())
+                .healthStatus(athlete.getHealthStatus().name())
+                .currentClubName(currentClubName)
+                .build();
     }
 }

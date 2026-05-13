@@ -78,6 +78,11 @@ public class AuthService {
             throw new AppException(HttpStatus.BAD_REQUEST, "Email đã được sử dụng bởi tài khoản khác");
         }
 
+        // Kiểm tra số điện thoại đã tồn tại hay chưa
+        if (userRepository.existsByPhoneNumber(request.getPhoneNumber())) {
+            throw new AppException(HttpStatus.BAD_REQUEST, "Số điện thoại này đã được đăng ký cho một tài khoản khác");
+        }
+
         // Lấy Role mặc định cho người dùng đăng ký mới (Vận động viên)
         Role athleteRole = roleRepository.findByRoleCode(RoleCode.ATHLETE)
                 .orElseThrow(() -> new AppException(HttpStatus.INTERNAL_SERVER_ERROR, "Hệ thống chưa cấu hình quyền VĐV"));

@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface MatchRefereeRepository extends JpaRepository<MatchReferee, Long> {
@@ -29,6 +30,7 @@ public interface MatchRefereeRepository extends JpaRepository<MatchReferee, Long
             @Param("matchStatuses") List<MatchStatus> matchStatuses);
 
     boolean existsByMatchIdAndRefereeId(Long matchId, Long refereeId);
+    Optional<MatchReferee> findByMatchIdAndRefereeId(Long matchId, Long refereeId);
     // =============================================================
 
 }
