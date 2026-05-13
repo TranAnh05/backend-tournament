@@ -39,7 +39,7 @@ public class RefereeService {
 
         List<MatchStatus> statuses;
         if ("PAST".equalsIgnoreCase(request.getTimeframe())) {
-            statuses = Arrays.asList(MatchStatus.FINISHED, MatchStatus.CANCELED);
+            statuses = Arrays.asList(MatchStatus.FINISHED, MatchStatus.CANCELED, MatchStatus.FINALIZED);
         } else {
             statuses = Arrays.asList(MatchStatus.SCHEDULED, MatchStatus.IN_PROGRESS);
         }
