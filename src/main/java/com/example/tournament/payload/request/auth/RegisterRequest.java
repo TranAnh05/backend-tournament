@@ -10,6 +10,8 @@ import lombok.Data;
 public class RegisterRequest {
     @NotBlank(message = "Họ tên không được để trống")
     @Size(max = 100, message = "Họ tên không được vượt quá 100 ký tự")
+    // BỔ SUNG: Chỉ cho phép chữ cái (hỗ trợ Unicode tiếng Việt) và khoảng trắng
+    @Pattern(regexp = "^[\\p{L}\\s]+$", message = "Họ tên chỉ được chứa chữ cái và khoảng trắng, không bao gồm số hay ký tự đặc biệt")
     private String fullName;
 
     @NotBlank(message = "Email không được để trống")

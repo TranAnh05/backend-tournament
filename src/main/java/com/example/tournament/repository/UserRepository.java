@@ -40,5 +40,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findOrganizerById(@Param("id") Long id);
 
     long countByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
+
+    boolean existsByPhoneNumber(String phoneNumber);
     // ===========================================================================
 }

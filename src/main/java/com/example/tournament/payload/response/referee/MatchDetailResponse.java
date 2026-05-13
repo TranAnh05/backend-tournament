@@ -38,6 +38,8 @@ public class MatchDetailResponse {
         // Chia sẵn Đá chính và Dự bị
         private List<PlayerDto> startingPlayers;
         private List<PlayerDto> substitutePlayers;
+
+        private List<PlayerDto> sentOffPlayers;
     }
 
     @Data
