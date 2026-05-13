@@ -153,6 +153,7 @@ public class RefereeService {
                 .currentScore(score)
                 .startingPlayers(mapToPlayerDto(clubLineups, LineupType.STARTING))
                 .substitutePlayers(mapToPlayerDto(clubLineups, LineupType.SUBSTITUTE))
+                .sentOffPlayers(mapToPlayerDto(clubLineups, LineupType.SENT_OFF))
                 .build();
     }
 
@@ -319,10 +320,6 @@ public class RefereeService {
 
     @Transactional
     public String recordMatchEvent(Long refereeId, Long matchId, MatchEventRequest request) {
-//        if (!matchRefereeRepository.existsByMatchIdAndRefereeId(matchId, refereeId)) {
-//            throw new AppException(HttpStatus.FORBIDDEN, "Bạn không có quyền thao tác trên trận đấu này!");
-//        }
-
         MatchReferee matchReferee = matchRefereeRepository.findByMatchIdAndRefereeId(matchId, refereeId)
                 .orElseThrow(() -> new AppException(HttpStatus.FORBIDDEN, "Bạn không có quyền thao tác trên trận đấu này!"));
 
@@ -393,7 +390,7 @@ public class RefereeService {
     }
 
     private void processEventSideEffects(Match match, Club club, Athlete primary, Athlete secondary, EventType type) {
-        // --- XỬ LÝ ĐIỂM SỐ TRẬN ĐẤU ---
+        // --- A. XỬ LÝ ĐIỂM SỐ TRẬN ĐẤU ---
         if (List.of(EventType.GOAL, EventType.PT_1, EventType.PT_2, EventType.PT_3, EventType.OWN_GOAL).contains(type)) {
             if (club == null) throw new AppException("Sự kiện ghi điểm bắt buộc phải gửi kèm ClubID");
 
@@ -415,7 +412,7 @@ public class RefereeService {
             }
         }
 
-        // --- XỬ LÝ THỐNG KÊ CÁ NHÂN VĐV ---
+        // --- B. XỬ LÝ THỐNG KÊ CÁ NHÂN VĐV ---
         if (primary != null && club != null) {
             // Tìm bản ghi thống kê cũ, nếu chưa có thì tạo mới
             PlayerStatistic stats = playerStatisticRepository
@@ -441,7 +438,7 @@ public class RefereeService {
             playerStatisticRepository.save(stats);
         }
 
-        // --- XỬ LÝ KIẾN TẠO  ---
+        // --- C. XỬ LÝ KIẾN TẠO ---
         if (secondary != null && type == EventType.GOAL) {
             PlayerStatistic secondaryStats = playerStatisticRepository
                     .findByTournamentIdAndAthleteId(match.getTournament().getId(), secondary.getId())
@@ -456,27 +453,47 @@ public class RefereeService {
             playerStatisticRepository.save(secondaryStats);
         }
 
-        // --- XỬ LÝ HOÁN ĐỔI ĐỘI HÌNH ---
+        // --- D. XỬ LÝ HOÁN ĐỔI / BỔ SUNG ĐỘI HÌNH (THAY NGƯỜI) ---
         if (type == EventType.SUBSTITUTION) {
-            if (primary == null || secondary == null) {
-                throw new AppException("Sự kiện thay người bắt buộc phải có cầu thủ rời sân và cầu thủ vào sân.");
+            if (secondary == null) {
+                throw new AppException("Sự kiện thay người hoặc bổ sung người bắt buộc phải có cầu thủ vào sân (secondaryAthleteId).");
             }
 
-            // Tìm bản ghi của người RỜI SÂN
-            MatchLineup leavingPlayer = matchLineupRepository
-                    .findByMatchIdAndAthleteId(match.getId(), primary.getId())
-                    .orElseThrow(() -> new AppException("Không tìm thấy cầu thủ rời sân (ID: " + primary.getId() + ") trong đội hình trận này."));
-
-            // Tìm bản ghi của người VÀO SÂN
+            // 1. Xử lý người VÀO SÂN (Luôn luôn phải có)
             MatchLineup enteringPlayer = matchLineupRepository
                     .findByMatchIdAndAthleteId(match.getId(), secondary.getId())
                     .orElseThrow(() -> new AppException("Không tìm thấy cầu thủ dự bị (ID: " + secondary.getId() + ") trong đội hình trận này."));
 
-            // Thực hiện HOÁN ĐỔI trạng thái
-            leavingPlayer.setLineupType(LineupType.SUBSTITUTE); // Đẩy ra ghế dự bị
-            enteringPlayer.setLineupType(LineupType.STARTING);  // Đưa vào đá chính
+            enteringPlayer.setLineupType(LineupType.STARTING); // Đưa vào đá chính
+            matchLineupRepository.save(enteringPlayer);
 
-            matchLineupRepository.saveAll(List.of(leavingPlayer, enteringPlayer));
+            // 2. Xử lý người RỜI SÂN (Có thể Null trong trường hợp bổ sung người sau thẻ đỏ)
+            if (primary != null) {
+                MatchLineup leavingPlayer = matchLineupRepository
+                        .findByMatchIdAndAthleteId(match.getId(), primary.getId())
+                        .orElseThrow(() -> new AppException("Không tìm thấy cầu thủ rời sân (ID: " + primary.getId() + ") trong đội hình trận này."));
+
+                leavingPlayer.setLineupType(LineupType.SUBSTITUTE); // Đẩy ra ghế dự bị
+                matchLineupRepository.save(leavingPlayer);
+            }
+        }
+
+        // --- E. XỬ LÝ THẺ ĐỎ (TRUẤT QUYỀN THI ĐẤU) ---
+        if (type == EventType.RED_CARD) {
+            if (primary == null) {
+                throw new AppException("Sự kiện thẻ đỏ bắt buộc phải có VĐV nhận thẻ (primaryAthleteId).");
+            }
+
+            // Tìm bản ghi của VĐV trong đội hình trận này
+            MatchLineup punishedPlayer = matchLineupRepository
+                    .findByMatchIdAndAthleteId(match.getId(), primary.getId())
+                    .orElseThrow(() -> new AppException("Không tìm thấy VĐV (ID: " + primary.getId() + ") trong đội hình trận này."));
+
+            // Gỡ bỏ quyền thi đấu -> Đẩy vào trạng thái SENT_OFF
+            punishedPlayer.setLineupType(LineupType.SENT_OFF);
+
+            // Lưu lại trạng thái mới
+            matchLineupRepository.save(punishedPlayer);
         }
     }
 
