@@ -19,6 +19,7 @@ public class ClubMemberResponse {
     private Long userId;
     private String fullName;
     private String email;
+    private String phoneNumber;
     private String identityNumber;
     private LocalDate dateOfBirth;
     private Integer preferredNumber;
