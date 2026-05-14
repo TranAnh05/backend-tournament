@@ -33,4 +33,9 @@ public interface MatchRefereeRepository extends JpaRepository<MatchReferee, Long
     Optional<MatchReferee> findByMatchIdAndRefereeId(Long matchId, Long refereeId);
     // =============================================================
 
+
+
+    // Xóa một trọng tài khỏi trận đấu
+    void deleteByMatchIdAndRefereeId(Long matchId, Long refereeId);
+
 }

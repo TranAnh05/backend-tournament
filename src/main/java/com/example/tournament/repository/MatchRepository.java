@@ -64,4 +64,9 @@ public interface MatchRepository extends JpaRepository<Match, Long> {
             "LEFT JOIN FETCH c.venue " +
             "WHERE m.id = :matchId")
     Optional<Match> findMatchDetailById(@Param("matchId") Long matchId);
+
+    // Kiểm tra xem bảng đấu này đã có lịch thi đấu chưa (Hàm bạn đã thêm lúc nãy)
+    boolean existsByGroupStageId(Long groupStageId);
+
+    List<Match> findByTournamentId(Long tournamentId);
 }
