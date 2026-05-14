@@ -81,4 +81,15 @@ public class Match {
     @OneToMany(mappedBy = "match")
     @Builder.Default
     private List<Discipline> disciplines = new ArrayList<>();
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "winner_id")
+    private Club winner; // Lưu đội thắng cuộc sau khi chốt biên bản
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "next_match_id")
+    private Match nextMatch; // Trận đấu ở vòng tiếp theo
+
+    @Column(name = "bracket_position")
+    private Integer bracketPosition;
 }

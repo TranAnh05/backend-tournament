@@ -80,4 +80,8 @@ public interface MatchRepository extends JpaRepository<Match, Long> {
             @Param("stageType") StageType stageType,
             @Param("status") MatchStatus status
     );
+
+
+    @Query("SELECT m.nextMatch FROM Match m WHERE m.id = :currentMatchId")
+    Optional<Match> findNextMatchByCurrentMatchId(@Param("currentMatchId") Long currentMatchId);
 }
