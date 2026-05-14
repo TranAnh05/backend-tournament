@@ -4,10 +4,7 @@ package com.example.tournament.service;
 import com.example.tournament.entity.*;
 import com.example.tournament.enums.MatchStatus;
 import com.example.tournament.enums.StageType;
-import com.example.tournament.repository.GroupStageRepository;
-import com.example.tournament.repository.MatchRepository;
-import com.example.tournament.repository.StandingRepository;
-import com.example.tournament.repository.TournamentRepository;
+import com.example.tournament.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +22,7 @@ public class ScheduleService {
     private final GroupStageRepository groupStageRepository;
     private final StandingRepository standingRepository;
     private final MatchRepository matchRepository;
+    private final CourtRepository courtRepository;
 
     @Transactional
     public void generateGroupStageSchedule(Long tournamentId) {
@@ -36,12 +34,16 @@ public class ScheduleService {
         if (groups.isEmpty()) {
             throw new RuntimeException("Giải đấu chưa được bốc thăm vòng bảng!");
         }
+        List<Court> validCourts = courtRepository.findValidCourtsForTournament(
+                tournament.getSport().getId(),
+                tournament.getVenue().getId()
+        );
 
         List<Match> newMatches = new ArrayList<>();
 
         // Cố định ngày khai mạc vòng bảng (Ví dụ: 7 ngày kể từ lúc bốc thăm)
         LocalDateTime groupStageStartDate = LocalDateTime.now().plusDays(7);
-
+        int courtIndex = 0;
         for (GroupStage group : groups) {
             if (matchRepository.existsByGroupStageId(group.getId())) {
                 continue;
@@ -81,6 +83,11 @@ public class ScheduleService {
 
                     // Chỉ tạo trận đấu nếu cả 2 đội đều là thật (Không phải đội Dummy)
                     if (home != null && away != null) {
+                        Court assignedCourt = null;
+                        if (!validCourts.isEmpty()) {
+                            assignedCourt = validCourts.get(courtIndex % validCourts.size());
+                            courtIndex++; // Tăng chỉ số để trận sau lấy sân tiếp theo
+                        }
                         Match newMatch = Match.builder()
                                 .tournament(tournament)
                                 .groupStage(group)
@@ -88,6 +95,7 @@ public class ScheduleService {
                                 .awayClub(away)
                                 .status(MatchStatus.SCHEDULED)
                                 .scheduledTime(matchDate) // Gắn chính xác ngày đã phân bổ
+                                .court(assignedCourt)
                                 .build();
 
                         newMatches.add(newMatch);
@@ -107,4 +115,6 @@ public class ScheduleService {
 
         matchRepository.saveAll(newMatches);
     }
+
+
 }

@@ -1,8 +1,10 @@
 package com.example.tournament.controller.Tournament;
 
 
+import com.example.tournament.entity.Court;
 import com.example.tournament.payload.request.Tournament.AssignRefereeRequest;
 import com.example.tournament.payload.response.ApiResponse;
+import com.example.tournament.payload.response.Tournament.CourtResponse;
 import com.example.tournament.payload.response.Tournament.OrganizerMatchResponse;
 import com.example.tournament.payload.response.Tournament.emptyscheduleRefereeResponse;
 import com.example.tournament.payload.response.club.MatchResponse;
@@ -99,5 +101,21 @@ public class OrganizerMatchController {
 //                        .build()
 //        );
 //    }
+@GetMapping("/{matchId}/available-courts")
+public ResponseEntity<ApiResponse<List<CourtResponse>>> getAvailableCourts(@PathVariable Long matchId) {
+    return ResponseEntity.ok(
+            ApiResponse.<List<CourtResponse>>builder()
+                    .code(200)
+                    .result(matchService.getAvailableCourtsForMatch(matchId)).build()
+    );
+}
 
+    @PatchMapping("/{matchId}/court")
+    public ResponseEntity<ApiResponse<OrganizerMatchResponse>> assignCourt(
+            @PathVariable Long matchId,
+            @RequestParam Long courtId) {
+        return ResponseEntity.ok(
+                ApiResponse.<OrganizerMatchResponse>builder().code(200).message("Đổi sân thành công!").result(matchService.assignCourtToMatch(matchId, courtId)).build()
+        );
+    }
 }

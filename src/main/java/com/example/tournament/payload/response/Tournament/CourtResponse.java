@@ -9,4 +9,5 @@ import lombok.Data;
 public class CourtResponse {
     private Long id;
     private String name;
+    private String courtName;
 }
