@@ -97,5 +97,12 @@ public interface TournamentRepository extends JpaRepository<Tournament, Long> {
 
     Page<Tournament> findByStatus(TournamentStatus status, Pageable pageable);
 
-
+    // ORGANINER
+    @Query("SELECT t FROM Tournament t " +
+            "JOIN FETCH t.sport s " +
+            "WHERE t.organizer.id = :organizerId " +
+            "AND t.isDeleted = false " +
+            "AND t.status IN ('ONGOING', 'FINISHED') " +
+            "ORDER BY t.createdAt DESC")
+    List<Tournament> findTournamentsForStandingsLookup(@Param("organizerId") Long organizerId);
 }
