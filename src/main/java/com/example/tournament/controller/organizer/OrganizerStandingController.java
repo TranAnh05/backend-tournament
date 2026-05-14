@@ -1,6 +1,7 @@
 package com.example.tournament.controller.organizer;
 
 import com.example.tournament.payload.response.ApiResponse;
+import com.example.tournament.payload.response.organier.OverallStandingResponse;
 import com.example.tournament.payload.response.organier.TournamentLookupResponse;
 import com.example.tournament.payload.response.organier.TournamentStandingResponse;
 import com.example.tournament.security.userdetail.CustomUserDetails;
@@ -42,6 +43,20 @@ public class OrganizerStandingController {
         return ResponseEntity.ok(ApiResponse.<List<TournamentLookupResponse>>builder()
                 .code(HttpStatus.OK.value())
                 .message("Tải danh sách giải đấu thành công")
+                .result(data)
+                .build());
+    }
+
+    @GetMapping("/{tournamentId}/overall-standings")
+    public ResponseEntity<ApiResponse<OverallStandingResponse>> getOverallStandings(
+            @PathVariable Long tournamentId) {
+
+        // Gọi Service xử lý logic gộp dữ liệu và sắp xếp theo phân bậc (Tiered Ranking)
+        OverallStandingResponse data = standingService.getOverallStandings(tournamentId);
+
+        return ResponseEntity.ok(ApiResponse.<OverallStandingResponse>builder()
+                .code(HttpStatus.OK.value())
+                .message("Tải bảng xếp hạng chung cuộc thành công")
                 .result(data)
                 .build());
     }
