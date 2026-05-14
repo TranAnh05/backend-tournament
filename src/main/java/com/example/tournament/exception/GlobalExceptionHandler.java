@@ -109,13 +109,13 @@ public class GlobalExceptionHandler {
     }
 
     // Bắt lỗi tài khoản bị khóa
-    @ExceptionHandler(org.springframework.security.authentication.LockedException.class)
-    public ResponseEntity<ErrorResponse> handleLockedException(Exception ex, HttpServletRequest request) {
+    @ExceptionHandler(org.springframework.security.authentication.DisabledException.class)
+    public ResponseEntity<ErrorResponse> handleDisabledException(Exception ex, HttpServletRequest request) {
         ErrorResponse errorResponse = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.FORBIDDEN.value())
                 .error("Forbidden")
-                .message("Tài khoản của bạn đã bị khóa. Vui lòng liên hệ Admin.")
+                .message("Tài khoản của bạn đã bị vô hiệu hóa. Vui lòng liên hệ Admin.")
                 .path(request.getRequestURI())
                 .build();
         return new ResponseEntity<>(errorResponse, HttpStatus.FORBIDDEN);
