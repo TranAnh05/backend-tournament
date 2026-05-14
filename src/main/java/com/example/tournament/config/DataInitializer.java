@@ -74,7 +74,7 @@ public class DataInitializer implements CommandLineRunner {
 
     private void initReferees() {
         Role refRole = roleRepository.findByRoleCode(RoleCode.REFEREE).orElseThrow();
-        for (int i = 1; i <= 2; i++) {
+        for (int i = 1; i <= 15; i++) {
             createUserIfNotFound("referee" + i + "@tournament.com", "Trọng tài " + i, "Referee@123", refRole);
         }
     }

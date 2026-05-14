@@ -154,7 +154,6 @@ public class OrganizerMatchService {
                 .match(match)
                 .referee(referee)
                 .roleInMatch(request.getRole() != null ? request.getRole() : RefereeRole.MAIN)
-                .signedAt(LocalDateTime.now())
                 .build();
 
         matchRefereeRepository.save(assignment);
