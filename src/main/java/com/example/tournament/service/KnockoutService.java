@@ -39,6 +39,7 @@ public class KnockoutService {
 
         Tournament tournament = tournamentRepository.findById(tournamentId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy giải đấu!"));
+        validateGroupStageFinalized(tournamentId);
 
         // 1. BẢO TOÀN THỨ TỰ HẠT GIỐNG TỪ FRONTEND TRUYỀN XUỐNG
         List<Club> clubsFromDb = clubRepository.findAllById(qualifiedClubIds);
@@ -113,5 +114,17 @@ public class KnockoutService {
 
         // 6. Lưu toàn bộ trận đấu vào Database
         matchRepository.saveAll(firstRoundMatches);
+    }
+
+    private void validateGroupStageFinalized(Long tournamentId) {
+        boolean hasUnfinalizedMatches = matchRepository.hasUnfinalizedMatches(
+                tournamentId,
+                StageType.GROUP,
+                MatchStatus.FINALIZED
+        );
+
+        if (hasUnfinalizedMatches) {
+            throw new RuntimeException("Chưa thể bốc thăm Knockout! Toàn bộ các trận Vòng bảng phải được chốt kết quả (Trạng thái FINALIZED).");
+        }
     }
 }

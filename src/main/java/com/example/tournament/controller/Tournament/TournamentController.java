@@ -285,19 +285,24 @@ public class TournamentController {
         );
     }
 
-    @PostMapping("/{tournamentId}/knockout-draw")
-    @PreAuthorize("hasRole('ORGANIZER')")
-    public ResponseEntity<ApiResponse<String>> drawKnockoutStage(
+    @PostMapping("/{tournamentId}/knockout/first-round")
+    public ResponseEntity<ApiResponse<String>> generateFirstKnockoutRound(
             @PathVariable Long tournamentId,
-            @Valid @RequestBody KnockoutDrawRequest request) {
+            @RequestBody KnockoutDrawRequest request) {
 
-        // Chỉ truyền đúng ID giải và danh sách ID các đội xuống Service
+        // Kiểm tra validation cơ bản
+        if (request.getQualifiedClubIds() == null || request.getQualifiedClubIds().size() < 2) {
+            throw new RuntimeException("Danh sách đội đi tiếp không hợp lệ (cần ít nhất 2 đội)!");
+        }
+
+
         knockoutService.generateFirstKnockoutRound(tournamentId, request.getQualifiedClubIds());
 
         return ResponseEntity.ok(
                 ApiResponse.<String>builder()
                         .code(200)
-                        .message("Tạo lịch thi đấu vòng Knockout thành công!")
+                        .message("Đã sinh lịch thi đấu Vòng Loại Trực Tiếp thành công!")
+                        .result("Success")
                         .build()
         );
     }
