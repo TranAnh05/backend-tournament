@@ -1,16 +1,15 @@
 package com.example.tournament.service;
 
 
+import com.example.tournament.entity.Court;
 import com.example.tournament.entity.Match;
 import com.example.tournament.entity.MatchReferee;
 import com.example.tournament.entity.User;
 import com.example.tournament.enums.RefereeRole;
 import com.example.tournament.payload.request.Tournament.AssignRefereeRequest;
-import com.example.tournament.payload.response.Tournament.ClubSummaryResponse;
-import com.example.tournament.payload.response.Tournament.OrganizerMatchResponse;
-import com.example.tournament.payload.response.Tournament.RefereeSummaryResponse;
-import com.example.tournament.payload.response.Tournament.emptyscheduleRefereeResponse;
+import com.example.tournament.payload.response.Tournament.*;
 import com.example.tournament.payload.response.club.MatchResponse;
+import com.example.tournament.repository.CourtRepository;
 import com.example.tournament.repository.MatchRefereeRepository;
 import com.example.tournament.repository.MatchRepository;
 import com.example.tournament.repository.UserRepository;
@@ -28,6 +27,7 @@ public class OrganizerMatchService {
 
     private final MatchRepository matchRepository;
     private final UserRepository userRepository;
+    private final CourtRepository courtRepository;
 
     private final MatchRefereeRepository matchRefereeRepository;
 
@@ -75,6 +75,13 @@ public class OrganizerMatchService {
                 }
             }
         }
+        CourtResponse courtRes = null;
+        if (match.getCourt() != null) {
+            courtRes = CourtResponse.builder()
+                    .id(match.getCourt().getId())
+                    .courtName(match.getCourt().getCourtName()) // Chú ý: Dùng getName() hay getCourtName() tùy thuộc vào Entity Court của bạn
+                    .build();
+        }
         return OrganizerMatchResponse.builder()
                 .id(match.getId())
                 .scheduledTime(match.getScheduledTime())
@@ -83,6 +90,7 @@ public class OrganizerMatchService {
                 .homeClub(home)
                 .awayClub(away)
                 .referee(refereeResponse)
+                .court(courtRes)
                 .build();
     }
 
@@ -151,5 +159,45 @@ public class OrganizerMatchService {
 
         matchRefereeRepository.save(assignment);
     }
+    // 1. Lấy danh sách sân trống cho 1 trận đấu cụ thể
+    public List<CourtResponse> getAvailableCourtsForMatch(Long matchId) {
+        Match match = matchRepository.findById(matchId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy trận đấu!"));
 
+        if (match.getScheduledTime() == null) {
+            throw new RuntimeException("Trận đấu chưa có lịch!");
+        }
+
+        // Tạo khoảng đệm thời gian an toàn (+/- 2 tiếng)
+        LocalDateTime startTime = match.getScheduledTime().minusHours(2);
+        LocalDateTime endTime = match.getScheduledTime().plusHours(2);
+        // Lấy danh sách Entity từ DB
+        List<Court> availableCourts = courtRepository.findAvailableCourts(
+                match.getTournament().getSport().getId(),
+                match.getTournament().getVenue().getId(),
+                startTime,
+                endTime
+        );
+
+        // Lấy từ repository (Dùng hàm đã viết ở bước trước)
+// ✨ MAP SANG DTO để ngắt hoàn toàn các liên kết lồng nhau
+        return availableCourts.stream()
+                .map(court -> CourtResponse.builder()
+                        .id(court.getId())
+                        .name(court.getCourtName()) // Thay getName() bằng getter tương ứng của Entity Court
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    // 2. Gán sân thi đấu
+    @Transactional
+    public OrganizerMatchResponse assignCourtToMatch(Long matchId, Long courtId) {
+        Match match = matchRepository.findById(matchId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy trận đấu!"));
+        Court court = courtRepository.findById(courtId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy sân!"));
+
+        match.setCourt(court);
+        return mapToMatchResponse(matchRepository.save(match));
+    }
 }

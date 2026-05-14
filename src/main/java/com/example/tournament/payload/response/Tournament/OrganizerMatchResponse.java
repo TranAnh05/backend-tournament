@@ -20,5 +20,6 @@ public class OrganizerMatchResponse {
     private ClubSummaryResponse homeClub;
     private ClubSummaryResponse awayClub;
     private RefereeSummaryResponse referee;
+    private CourtResponse court;
 
 }
