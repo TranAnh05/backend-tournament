@@ -516,6 +516,10 @@ public class RefereeService {
         // ĐÓNG BĂNG DỮ LIỆU
         matchReferee.setSignedAt(LocalDateTime.now());
         match.setStatus(MatchStatus.FINALIZED);
+
+        if (isKnockoutMatch(match)) {
+            promoteWinnerToNextRound(match);
+        }
         // Cập nhật Bảng xếp hạng
         updateStandings(match);
 
@@ -627,5 +631,44 @@ public class RefereeService {
             stats.setMatchesPlayed(stats.getMatchesPlayed() + 1);
             playerStatisticRepository.save(stats);
         }
+
+
+    }
+    private boolean isKnockoutMatch(Match match) {
+        return match.getGroupStage() != null &&
+                "KNOCKOUT".equals(match.getGroupStage().getStageType().name());
+    }
+
+    private void promoteWinnerToNextRound(Match currentMatch) {
+        // 1. Xác định đội thắng dựa trên tỉ số (hoặc winnerId nếu bạn dùng cơ chế chọn trực tiếp)
+        Club winner = determineWinner(currentMatch);
+        if (winner == null) return;
+
+        // Lưu lại winner vào trận hiện tại để làm bằng chứng
+        currentMatch.setWinner(winner);
+
+        // 2. Tìm trận đấu tiếp theo mà đội thắng sẽ tham gia
+        // 'nextMatch' là thuộc tính liên kết trong Entity Match trỏ đến trận đấu vòng sau
+        Match nextMatch = currentMatch.getNextMatch();
+
+        if (nextMatch != null) {
+            // 3. Logic nhánh đấu: Trận có BracketPosition lẻ vào Home, chẵn vào Away
+            if (currentMatch.getBracketPosition() % 2 != 0) {
+                nextMatch.setHomeClub(winner);
+            } else {
+                nextMatch.setAwayClub(winner);
+            }
+            matchRepository.save(nextMatch);
+        }
+    }
+
+    private Club determineWinner(Match match) {
+        if (match.getHomeScore() == null || match.getAwayScore() == null) return null;
+
+        // Phù hợp cho cả bóng đá (bàn thắng) và cầu lông (số set thắng)
+        if (match.getHomeScore() > match.getAwayScore()) return match.getHomeClub();
+        if (match.getAwayScore() > match.getHomeScore()) return match.getAwayClub();
+
+        return null;
     }
 }

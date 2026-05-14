@@ -36,33 +36,26 @@ public class KnockoutService {
 
     @Transactional
     public void generateFirstKnockoutRound(Long tournamentId, List<Long> qualifiedClubIds) {
-
         Tournament tournament = tournamentRepository.findById(tournamentId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy giải đấu!"));
+
         validateGroupStageFinalized(tournamentId);
 
-        // 1. BẢO TOÀN THỨ TỰ HẠT GIỐNG TỪ FRONTEND TRUYỀN XUỐNG
+        // 1. Lấy và bảo toàn thứ tự hạt giống
         List<Club> clubsFromDb = clubRepository.findAllById(qualifiedClubIds);
-
         Map<Long, Club> clubMap = clubsFromDb.stream()
                 .collect(Collectors.toMap(Club::getId, club -> club));
 
-        // Tạo mảng đã được sắp xếp chuẩn xác
         List<Club> sortedQualifiedClubs = qualifiedClubIds.stream()
                 .map(clubMap::get)
                 .filter(java.util.Objects::nonNull)
                 .collect(Collectors.toList());
 
         int n = sortedQualifiedClubs.size();
-        if (n < 2) {
-            throw new RuntimeException("Cần ít nhất 2 đội để tạo vòng Knockout!");
-        }
-
-        // 2. Tính toán số lượng vé "Đặc cách" (Bye)
         int nextPowerOf2 = (int) Math.pow(2, Math.ceil(Math.log(n) / Math.log(2)));
         int numByes = nextPowerOf2 - n;
 
-        // 3. Tạo GroupStage cho Vòng Knockout
+        // 2. Tạo GroupStage
         GroupStage knockoutStage = GroupStage.builder()
                 .tournament(tournament)
                 .name("Vòng Loại Trực Tiếp - " + nextPowerOf2 + " Đội")
@@ -71,10 +64,12 @@ public class KnockoutService {
                 .build();
         knockoutStage = groupStageRepository.save(knockoutStage);
 
+        // ✨ KHAI BÁO CÁC BIẾN ĐỂ FIX LỖI "SYMBOL"
         List<Match> firstRoundMatches = new ArrayList<>();
         int teamIndex = 0;
+        int currentPosition = 1; // Biến này để đánh số trận 1, 2, 3...
 
-        // 4. Xử lý các đội được ĐẶC CÁCH (Bye)
+        // 3. Xử lý các đội được ĐẶC CÁCH (Bye)
         for (int i = 0; i < numByes; i++) {
             Club byeClub = sortedQualifiedClubs.get(teamIndex++);
 
@@ -82,38 +77,43 @@ public class KnockoutService {
                     .tournament(tournament)
                     .groupStage(knockoutStage)
                     .homeClub(byeClub)
-                    .awayClub(null) // Đặc cách nên đối thủ là null
-                    .status(MatchStatus.FINISHED) // Chuyển thẳng thành đã hoàn thành
+                    .awayClub(null)
+                    .bracketPosition(currentPosition++) // ✨ Fix lỗi currentPosition
+                    .status(MatchStatus.FINALIZED)      // ✨ Tự động chốt
+                    .winner(byeClub)                    // ✨ Xác định người thắng ngay
+                    .homeScore(0).awayScore(0)
                     .scheduledTime(LocalDateTime.now().plusDays(1))
                     .build();
 
             firstRoundMatches.add(byeMatch);
         }
 
-        // 5. Xử lý các đội còn lại (Bắt chéo 2 đầu)
+        // 4. Xử lý các đội còn lại (Bắt chéo)
         int left = teamIndex;
         int right = sortedQualifiedClubs.size() - 1;
 
         while (left < right) {
-            Club homeClub = sortedQualifiedClubs.get(left);
-            Club awayClub = sortedQualifiedClubs.get(right);
-
+            // ✨ Khai báo regularMatch bên trong vòng lặp để fix lỗi resolve
             Match regularMatch = Match.builder()
                     .tournament(tournament)
                     .groupStage(knockoutStage)
-                    .homeClub(homeClub)
-                    .awayClub(awayClub)
+                    .homeClub(sortedQualifiedClubs.get(left++))
+                    .awayClub(sortedQualifiedClubs.get(right--))
+                    .bracketPosition(currentPosition++) // ✨ Đánh số vị trí tiếp theo
                     .status(MatchStatus.SCHEDULED)
                     .scheduledTime(LocalDateTime.now().plusDays(1))
                     .build();
 
             firstRoundMatches.add(regularMatch);
-            left++;
-            right--;
         }
 
-        // 6. Lưu toàn bộ trận đấu vào Database
-        matchRepository.saveAll(firstRoundMatches);
+        // 5. Lưu và TỰ ĐỘNG THĂNG HẠNG (Fix lỗi allRoundMatches và savedMatches)
+        List<Match> savedMatches = matchRepository.saveAll(firstRoundMatches);
+
+        // Stream qua danh sách đã lưu, lọc ra các trận FINALIZED (đặc cách) để đẩy lên vòng sau
+        savedMatches.stream()
+                .filter(m -> m.getStatus() == MatchStatus.FINALIZED)
+                .forEach(this::promoteWinnerToNextRound);
     }
 
     private void validateGroupStageFinalized(Long tournamentId) {
@@ -125,6 +125,23 @@ public class KnockoutService {
 
         if (hasUnfinalizedMatches) {
             throw new RuntimeException("Chưa thể bốc thăm Knockout! Toàn bộ các trận Vòng bảng phải được chốt kết quả (Trạng thái FINALIZED).");
+        }
+    }
+
+    public void promoteWinnerToNextRound(Match currentMatch) {
+        if (currentMatch.getWinner() == null) return;
+
+        // Tìm trận tiếp theo (Phải đảm bảo bạn đã tạo sẵn khung trận đấu vòng sau hoặc có logic link ID)
+        Match nextMatch = currentMatch.getNextMatch();
+
+        if (nextMatch != null) {
+            // Logic nhánh đấu: Trận 1, 3, 5 -> Home; Trận 2, 4, 6 -> Away
+            if (currentMatch.getBracketPosition() % 2 != 0) {
+                nextMatch.setHomeClub(currentMatch.getWinner());
+            } else {
+                nextMatch.setAwayClub(currentMatch.getWinner());
+            }
+            matchRepository.save(nextMatch);
         }
     }
 }
