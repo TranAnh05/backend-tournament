@@ -89,6 +89,7 @@ public class ClubService {
                 .userId(user.getId())
                 .fullName(user.getFullName())
                 .email(user.getEmail())
+                .phoneNumber(user.getPhoneNumber()) // 👈 thêm dòng này
                 .identityNumber(ath.getIdentityNumber())
                 .dateOfBirth(ath.getDateOfBirth())
                 .preferredNumber(ath.getPreferredNumber())
