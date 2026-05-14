@@ -25,22 +25,25 @@ public interface TournamentRosterRepository extends JpaRepository<TournamentRost
     long countByTournamentIdAndClubId(Long tournamentId, Long clubId);
 
     @Query("""
-        SELECT r FROM TournamentRoster r
-        WHERE r.club = :club
-          AND r.tournament.id <> :tournamentId
-          AND r.athlete.id IN :athleteIds
-    """)
+    SELECT r FROM TournamentRoster r
+    WHERE r.club = :club
+      AND r.tournament.id <> :tournamentId
+      AND r.athlete.id IN :athleteIds
+      AND r.tournament.status NOT IN ('FINISHED', 'CANCELED')
+""")
     List<TournamentRoster> findConflicts(
             @Param("club") Club club,
             @Param("tournamentId") Long tournamentId,
             @Param("athleteIds") Set<Long> athleteIds
     );
+
     @Query("""
-        SELECT r FROM TournamentRoster r
-        JOIN FETCH r.tournament
-        WHERE r.club = :club
-          AND r.tournament.id <> :tournamentId
-    """)
+    SELECT r FROM TournamentRoster r
+    JOIN FETCH r.tournament
+    WHERE r.club = :club
+      AND r.tournament.id <> :tournamentId
+      AND r.tournament.status NOT IN ('FINISHED', 'CANCELED')
+""")
     List<TournamentRoster> findByClubExcludingTournament(
             @Param("club") Club club,
             @Param("tournamentId") Long tournamentId
