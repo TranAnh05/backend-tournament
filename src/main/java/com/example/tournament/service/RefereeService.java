@@ -16,9 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -85,6 +83,7 @@ public class RefereeService {
         }).collect(Collectors.toList());
     }
 
+    // CHUC NANG XEM CHI TIET TRAN DAU - START
     @Transactional(readOnly = true)
     public MatchDetailResponse getMatchDetail(Long refereeId, Long matchId) {
         if (!matchRefereeRepository.existsByMatchIdAndRefereeId(matchId, refereeId)) {
@@ -94,12 +93,17 @@ public class RefereeService {
         Match match = matchRepository.findMatchDetailById(matchId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy thông tin trận đấu"));
 
+        // Lấy cấu hình luật thi đấu
         Map<String, String> rulesMap = sportRuleRepository.findBySportId(match.getTournament().getSport().getId())
                 .stream()
                 .collect(Collectors.toMap(SportRule::getRuleKey, SportRule::getRuleValue));
 
-        // Lấy toàn bộ danh sách đội hình và phân loại
+        // Kiểm tra xem môn này có đánh theo Set không
+        boolean isSetBased = "SET_BASED".equals(rulesMap.get("CLOCK_TYPE"));
+
+        // Lấy toàn bộ danh sách đội hình và sự kiện
         List<MatchLineup> allLineups = matchLineupRepository.findLineupsByMatchId(matchId);
+        List<MatchEvent> events = matchEventRepository.findByMatchIdOrderByCreatedAtAsc(matchId);
 
         // Xây dựng thông tin địa điểm
         String location = match.getTournament().getVenue().getName();
@@ -107,7 +111,7 @@ public class RefereeService {
             location += " - " + match.getCourt().getCourtName();
         }
 
-        List<MatchEvent> events = matchEventRepository.findByMatchIdOrderByCreatedAtAsc(matchId);
+        // Map dữ liệu Timeline
         List<MatchDetailResponse.MatchEventDto> timeline = events.stream()
                 .map(e -> MatchDetailResponse.MatchEventDto.builder()
                         .id(e.getId())
@@ -123,6 +127,28 @@ public class RefereeService {
                         .build())
                 .collect(Collectors.toList());
 
+        // THÊM MỚI: Tính toán Lịch sử Điểm số (periodScores) và Điểm Set hiện tại (currentPeriodScore)
+        List<MatchDetailResponse.PeriodScoreDto> periodScores = new ArrayList<>();
+        int currentHomePeriodScore = 0;
+        int currentAwayPeriodScore = 0;
+
+        if (isSetBased) {
+            periodScores = calculatePeriodScores(events, match);
+
+            // Tìm Set đang diễn ra (Set cuối cùng chưa kết thúc) để lấy điểm currentPeriodScore
+            for (MatchDetailResponse.PeriodScoreDto p : periodScores) {
+                if (Boolean.FALSE.equals(p.getIsFinished())) {
+                    currentHomePeriodScore = p.getHomeScore();
+                    currentAwayPeriodScore = p.getAwayScore();
+                    break;
+                }
+            }
+        } else {
+            // Nếu là Bóng đá, currentPeriodScore chính là tỷ số chung cuộc, còn matchScore có thể null hoặc bằng current
+            currentHomePeriodScore = match.getHomeScore();
+            currentAwayPeriodScore = match.getAwayScore();
+        }
+
         return MatchDetailResponse.builder()
                 .matchId(match.getId())
                 .tournamentName(match.getTournament().getName())
@@ -131,17 +157,17 @@ public class RefereeService {
                 .location(location)
                 .status(String.valueOf(match.getStatus()))
                 .sportRules(rulesMap)
-                .homeTeam(buildTeamLineup(match.getHomeClub(), match.getHomeScore(), allLineups))
-                .awayTeam(buildTeamLineup(match.getAwayClub(), match.getAwayScore(), allLineups))
+                .periodScores(periodScores) // Gắn list lịch sử Set vào DTO
+                .homeTeam(buildTeamLineup(match.getHomeClub(), match.getHomeScore(), currentHomePeriodScore, allLineups))
+                .awayTeam(buildTeamLineup(match.getAwayClub(), match.getAwayScore(), currentAwayPeriodScore, allLineups))
                 .timeline(timeline)
                 .build();
     }
 
-    // Hàm bổ trợ để lọc và xây dựng đội hình cho từng CLB
-    private MatchDetailResponse.TeamLineupDto buildTeamLineup(Club club, Integer score, List<MatchLineup> allLineups) {
+    // CẬP NHẬT: Hàm bổ trợ thêm tham số currentPeriodScore
+    private MatchDetailResponse.TeamLineupDto buildTeamLineup(Club club, Integer matchScore, Integer currentPeriodScore, List<MatchLineup> allLineups) {
         if (club == null) return null;
 
-        // Lọc danh sách VĐV thuộc về CLB này
         List<MatchLineup> clubLineups = allLineups.stream()
                 .filter(ml -> ml.getClub().getId().equals(club.getId()))
                 .collect(Collectors.toList());
@@ -150,20 +176,22 @@ public class RefereeService {
                 .clubId(club.getId())
                 .clubName(club.getName())
                 .logoUrl(club.getLogoUrl())
-                .currentScore(score)
+                .matchScore(matchScore)                 // Thay thế currentScore thành matchScore
+                .currentPeriodScore(currentPeriodScore) // Gắn điểm của Set hiện tại
                 .startingPlayers(mapToPlayerDto(clubLineups, LineupType.STARTING))
                 .substitutePlayers(mapToPlayerDto(clubLineups, LineupType.SUBSTITUTE))
                 .sentOffPlayers(mapToPlayerDto(clubLineups, LineupType.SENT_OFF))
                 .build();
     }
 
+    // Hàm mapToPlayerDto giữ nguyên không đổi
     private List<MatchDetailResponse.PlayerDto> mapToPlayerDto(List<MatchLineup> lineups, LineupType type) {
         return lineups.stream()
                 .filter(ml -> ml.getLineupType().equals(type))
                 .map(ml -> MatchDetailResponse.PlayerDto.builder()
                         .lineupId(ml.getId())
                         .athleteId(ml.getAthlete().getId())
-                        .fullName(ml.getAthlete().getUser().getFullName()) // Lấy từ bảng users
+                        .fullName(ml.getAthlete().getUser().getFullName())
                         .identityNumber(ml.getAthlete().getIdentityNumber())
                         .portraitUrl(ml.getAthlete().getPortraitUrl())
                         .jerseyNumber(ml.getJerseyNumber())
@@ -173,6 +201,54 @@ public class RefereeService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * THÊM MỚI: Hàm phụ trợ tính toán điểm số cho từng Set (Period) từ danh sách sự kiện
+     */
+    private List<MatchDetailResponse.PeriodScoreDto> calculatePeriodScores(List<MatchEvent> events, Match match) {
+        Map<String, MatchDetailResponse.PeriodScoreDto> periodMap = new LinkedHashMap<>();
+
+        for (MatchEvent e : events) {
+            String timeStr = e.getEventTime();
+            if (timeStr == null || !timeStr.contains("-")) continue;
+
+            // Trích xuất tên Set (VD: "Set 1 - 00:00" -> "Set 1")
+            String periodName = timeStr.split("-")[0].trim();
+
+            // Khởi tạo Set nếu chưa có trong Map
+            MatchDetailResponse.PeriodScoreDto periodDto = periodMap.computeIfAbsent(periodName, k ->
+                    MatchDetailResponse.PeriodScoreDto.builder()
+                            .periodName(periodName) // Anh có thể đổi sang periodNumber ở DTO nếu muốn parse Integer
+                            .homeScore(0)
+                            .awayScore(0)
+                            .isFinished(false)
+                            .build()
+            );
+
+            // Chốt Set nếu có sự kiện END_PERIOD
+            if (e.getEventType() == EventType.END_PERIOD && timeStr.startsWith(periodName)) {
+                periodDto.setIsFinished(true);
+            }
+
+            // Tính điểm cho Set đó
+            if (List.of(EventType.GOAL, EventType.PT_1, EventType.PT_2, EventType.PT_3, EventType.OWN_GOAL).contains(e.getEventType())) {
+                boolean isHome = e.getClub() != null && e.getClub().getId().equals(match.getHomeClub().getId());
+                int pts = (e.getEventType() == EventType.PT_3) ? 3 : (e.getEventType() == EventType.PT_2 ? 2 : 1);
+
+                if (e.getEventType() == EventType.OWN_GOAL) {
+                    if (isHome) periodDto.setAwayScore(periodDto.getAwayScore() + pts);
+                    else periodDto.setHomeScore(periodDto.getHomeScore() + pts);
+                } else {
+                    if (isHome) periodDto.setHomeScore(periodDto.getHomeScore() + pts);
+                    else periodDto.setAwayScore(periodDto.getAwayScore() + pts);
+                }
+            }
+        }
+
+        return new ArrayList<>(periodMap.values());
+    }
+    // ================================ - END
+
+    // CHOT DANH SACH VDV RA SAN - START
     @Transactional
     public String confirmLineups(Long refereeId, Long matchId, ConfirmLineupRequest request) {
         if (!matchRefereeRepository.existsByMatchIdAndRefereeId(matchId, refereeId)) {
@@ -194,7 +270,9 @@ public class RefereeService {
 
         return "Đã xác nhận thành công " + updatedCount + " vận động viên.";
     }
+    // ======================= - END
 
+    // DOI TRANG THAI TRAN DAU - START
     @Transactional
     public String changeMatchStatus(Long refereeId, Long matchId, ChangeMatchStatusRequest request) {
 //        if (!matchRefereeRepository.existsByMatchIdAndRefereeId(matchId, refereeId)) {
@@ -317,13 +395,15 @@ public class RefereeService {
             throw new AppException("Đội " + match.getAwayClub().getName() + " chưa đủ số lượng VĐV ra sân tối thiểu (" + minPlayers + "). Vui lòng duyệt thêm.");
         }
     }
+    // ======================= - END
 
+    // CHUC NANG GHI NHAN SU KIEN - START
     @Transactional
     public String recordMatchEvent(Long refereeId, Long matchId, MatchEventRequest request) {
         MatchReferee matchReferee = matchRefereeRepository.findByMatchIdAndRefereeId(matchId, refereeId)
                 .orElseThrow(() -> new AppException(HttpStatus.FORBIDDEN, "Bạn không có quyền thao tác trên trận đấu này!"));
 
-        // NẾU ĐÃ KÝ DUYỆT -> VĂNG LỖI NGAY LẬP TỨC, KHÔNG CHẠY XUỐNG DƯỚI NỮA
+        // 1. KIỂM TRA TRẠNG THÁI KHÓA BIÊN BẢN
         if (matchReferee.getSignedAt() != null) {
             throw new AppException(HttpStatus.LOCKED, "Biên bản trận đấu đã được chốt sổ. Không thể thêm, sửa, hay xóa sự kiện!");
         }
@@ -331,6 +411,7 @@ public class RefereeService {
         Match match = matchRepository.findById(matchId)
                 .orElseThrow(() -> new ResourceNotFoundException("Trận đấu", "id", matchId));
 
+        // 2. PARSE VÀ KIỂM TRA EVENT TYPE
         EventType eventType;
         try {
             eventType = EventType.valueOf(request.getEventType());
@@ -338,39 +419,22 @@ public class RefereeService {
             throw new AppException("Loại sự kiện không hợp lệ: " + request.getEventType());
         }
 
-        if (eventType == EventType.RESUME_MATCH) {
-            if (!MatchStatus.PAUSED.equals(match.getStatus())) {
-                throw new AppException("Chỉ có thể tiếp tục khi trận đấu đang tạm dừng.");
-            }
-            match.setStatus(MatchStatus.IN_PROGRESS);
+        validateEventTiming(match, eventType);
 
-        } else if (eventType == EventType.PAUSE_MATCH) {
-            if (!MatchStatus.IN_PROGRESS.equals(match.getStatus())) {
-                throw new AppException("Chỉ có thể tạm dừng khi trận đấu đang diễn ra.");
-            }
-            match.setStatus(MatchStatus.PAUSED);
-
-        } else {
-            if (!MatchStatus.IN_PROGRESS.equals(match.getStatus())) {
-                throw new AppException("Chỉ có thể ghi nhận sự kiện khi trận đấu đang diễn ra.");
-            }
-        }
-
+        // 3. TÌM KIẾM CÁC THỰC THỂ LIÊN QUAN
         Club club = request.getClubId() != null
-                ? clubRepository.findById(request.getClubId())
-                .orElseThrow(() -> new ResourceNotFoundException("Câu lạc bộ", "id", request.getClubId()))
+                ? clubRepository.findById(request.getClubId()).orElseThrow(() -> new ResourceNotFoundException("Câu lạc bộ", "id", request.getClubId()))
                 : null;
 
         Athlete primaryAthlete = request.getPrimaryAthleteId() != null
-                ? athleteRepository.findById(request.getPrimaryAthleteId())
-                .orElseThrow(() -> new ResourceNotFoundException("Vận động viên", "id", request.getPrimaryAthleteId()))
+                ? athleteRepository.findById(request.getPrimaryAthleteId()).orElseThrow(() -> new ResourceNotFoundException("Vận động viên", "id", request.getPrimaryAthleteId()))
                 : null;
 
         Athlete secondaryAthlete = request.getSecondaryAthleteId() != null
-                ? athleteRepository.findById(request.getSecondaryAthleteId())
-                .orElseThrow(() -> new ResourceNotFoundException("Vận động viên", "id", request.getSecondaryAthleteId()))
+                ? athleteRepository.findById(request.getSecondaryAthleteId()).orElseThrow(() -> new ResourceNotFoundException("Vận động viên", "id", request.getSecondaryAthleteId()))
                 : null;
 
+        // 4. LƯU SỰ KIỆN VÀO DATABASE
         MatchEvent event = MatchEvent.builder()
                 .match(match)
                 .club(club)
@@ -382,64 +446,149 @@ public class RefereeService {
                 .build();
         matchEventRepository.save(event);
 
-        processEventSideEffects(match, club, primaryAthlete, secondaryAthlete, eventType);
+        // 5. XỬ LÝ CÁC HIỆU ỨNG PHỤ (Cộng điểm, chốt Set, thẻ phạt...)
+        processEventSideEffects(match, club, primaryAthlete, secondaryAthlete, eventType, request.getEventTime());
 
+        // 6. LƯU TRẠNG THÁI TRẬN ĐẤU
         matchRepository.save(match);
 
         return "Đã ghi nhận sự kiện: " + eventType.name() + " thành công.";
     }
 
-    private void processEventSideEffects(Match match, Club club, Athlete primary, Athlete secondary, EventType type) {
-        // --- A. XỬ LÝ ĐIỂM SỐ TRẬN ĐẤU ---
-        if (List.of(EventType.GOAL, EventType.PT_1, EventType.PT_2, EventType.PT_3, EventType.OWN_GOAL).contains(type)) {
+// =====================================================================================
+// CÁC HÀM XỬ LÝ NGHIỆP VỤ (CLEAN CODE REFRACTORING)
+// =====================================================================================
+
+    private void processEventSideEffects(Match match, Club club, Athlete primary, Athlete secondary, EventType type, String eventTime) {
+        Long sportId = match.getTournament().getSport().getId();
+
+        // Đọc cấu hình môn thể thao
+        boolean isSetBased = sportRuleRepository.findBySportIdAndRuleKey(sportId, "CLOCK_TYPE")
+                .map(rule -> "SET_BASED".equals(rule.getRuleValue()))
+                .orElse(false);
+
+        int maxPeriods = sportRuleRepository.findBySportIdAndRuleKey(sportId, "PERIODS")
+                .map(rule -> {
+                    try { return Integer.parseInt(rule.getRuleValue()); }
+                    catch (NumberFormatException e) { return 1; }
+                }).orElse(1);
+
+        // A. Xử lý Điểm số Trận đấu & Auto-Win
+        handleMatchScoring(match, club, type, isSetBased, eventTime, maxPeriods);
+
+        // B. Xử lý Thống kê cá nhân (Bàn thắng, Thẻ phạt)
+        handlePlayerStatistics(match, club, primary, type);
+
+        // C. Xử lý Kiến tạo
+        handleAssist(match, club, secondary, type);
+
+        // D. Xử lý Thay người
+        handleSubstitution(match, primary, secondary, type);
+
+        // E. Xử lý Thẻ Đỏ
+        handleRedCard(match, primary, type);
+    }
+
+    /**
+     * Xử lý Tỷ số Trận đấu (Match Score) và Auto-Win cho cả 2 thể thức
+     */
+    private void handleMatchScoring(Match match, Club club, EventType type, boolean isSetBased, String eventTime, int maxPeriods) {
+        boolean isScoringEvent = List.of(EventType.GOAL, EventType.PT_1, EventType.PT_2, EventType.PT_3, EventType.OWN_GOAL).contains(type);
+
+        // TH 1: Môn tính điểm gộp (Bóng đá, Bóng rổ) -> Cộng thẳng vào tỷ số chung cuộc
+        if (isScoringEvent && !isSetBased) {
             if (club == null) throw new AppException("Sự kiện ghi điểm bắt buộc phải gửi kèm ClubID");
 
-            // Tính số điểm cần cộng
-            int pointsToAdd = 1; // Mặc định GOAL, POINT_1, OWN_GOAL là 1 điểm
-            if (type == EventType.PT_2) pointsToAdd = 2;
-            if (type == EventType.PT_3) pointsToAdd = 3;
-
+            int pointsToAdd = (type == EventType.PT_3) ? 3 : ((type == EventType.PT_2) ? 2 : 1);
             boolean isHomeClub = club.getId().equals(match.getHomeClub().getId());
 
-            // Xử lý Phản lưới nhà (Điểm cộng cho đội ĐỐI PHƯƠNG)
             if (type == EventType.OWN_GOAL) {
                 if (isHomeClub) match.setAwayScore(match.getAwayScore() + pointsToAdd);
                 else match.setHomeScore(match.getHomeScore() + pointsToAdd);
             } else {
-                // Bình thường (Điểm cộng cho CHÍNH ĐỘI MÌNH)
                 if (isHomeClub) match.setHomeScore(match.getHomeScore() + pointsToAdd);
                 else match.setAwayScore(match.getAwayScore() + pointsToAdd);
             }
         }
 
-        // --- B. XỬ LÝ THỐNG KÊ CÁ NHÂN VĐV ---
-        if (primary != null && club != null) {
-            // Tìm bản ghi thống kê cũ, nếu chưa có thì tạo mới
-            PlayerStatistic stats = playerStatisticRepository
-                    .findByTournamentIdAndAthleteId(match.getTournament().getId(), primary.getId())
-                    .orElseGet(() -> PlayerStatistic.builder()
-                            .tournament(match.getTournament())
-                            .athlete(primary)
-                            .club(club)
-                            .matchesPlayed(0)
-                            .scores(0).assists(0).fouls(0).mvpCount(0)
-                            .build());
+        // TH 2: Môn đánh theo Set (Cầu lông, Bóng bàn) -> Chốt Set và Kiểm tra Auto-Win
+        if (isSetBased && type == EventType.END_PERIOD) {
+            // 1. Tính toán ai thắng Set vừa rồi để +1 vào MatchScore
+            evaluateSetWinner(match, eventTime);
 
-            // Cộng bàn thắng
-            if (List.of(EventType.GOAL, EventType.PT_1, EventType.PT_2, EventType.PT_3).contains(type)) {
-                int pointsToAdd = (type == EventType.PT_3) ? 3 : ((type == EventType.PT_2) ? 2 : 1);
-                stats.setScores(stats.getScores() + pointsToAdd);
+            // 2. Kiểm tra điều kiện Auto-Win (Ví dụ: Đánh 3 Set, đội nào chạm 2 trước là thắng trận)
+            int requiredSetsToWin = (maxPeriods / 2) + 1;
+            if (match.getHomeScore() >= requiredSetsToWin || match.getAwayScore() >= requiredSetsToWin) {
+                match.setStatus(MatchStatus.FINISHED);
             }
-            // Cộng thẻ phạt / Phạm lỗi
-            else if (List.of(EventType.YELLOW_CARD, EventType.RED_CARD, EventType.FOUL, EventType.TECHNICAL_FOUL).contains(type)) {
-                stats.setFouls(stats.getFouls() + 1);
-            }
+        }
+    }
 
-            playerStatisticRepository.save(stats);
+    /**
+     * Tính toán đội thắng Set dựa trên lịch sử các sự kiện trong Set đó
+     */
+    private void evaluateSetWinner(Match match, String currentEventTime) {
+        if (currentEventTime == null || !currentEventTime.contains("-")) return;
+
+        String setIdentifier = currentEventTime.split("-")[0].trim(); // Lấy "Set 1" từ "Set 1 - 21:00"
+
+        List<MatchEvent> events = matchEventRepository.findByMatchIdAndEventTypeIn(
+                match.getId(),
+                List.of(EventType.GOAL, EventType.PT_1, EventType.PT_2, EventType.PT_3, EventType.OWN_GOAL)
+        );
+
+        int homeSetPts = 0;
+        int awaySetPts = 0;
+
+        for (MatchEvent evt : events) {
+            if (evt.getEventTime() != null && evt.getEventTime().startsWith(setIdentifier)) {
+                boolean isHomeClub = evt.getClub().getId().equals(match.getHomeClub().getId());
+                int pts = (evt.getEventType() == EventType.PT_3) ? 3 : ((evt.getEventType() == EventType.PT_2) ? 2 : 1);
+
+                if (evt.getEventType() == EventType.OWN_GOAL) {
+                    if (isHomeClub) awaySetPts += pts; else homeSetPts += pts;
+                } else {
+                    if (isHomeClub) homeSetPts += pts; else awaySetPts += pts;
+                }
+            }
         }
 
-        // --- C. XỬ LÝ KIẾN TẠO ---
-        if (secondary != null && type == EventType.GOAL) {
+        if (homeSetPts > awaySetPts) {
+            match.setHomeScore(match.getHomeScore() + 1);
+        } else if (awaySetPts > homeSetPts) {
+            match.setAwayScore(match.getAwayScore() + 1);
+        }
+    }
+
+    /**
+     * Xử lý Thống kê cá nhân (Cộng điểm cá nhân, Thẻ phạt)
+     */
+    private void handlePlayerStatistics(Match match, Club club, Athlete primary, EventType type) {
+        if (primary == null || club == null) return;
+
+        PlayerStatistic stats = playerStatisticRepository
+                .findByTournamentIdAndAthleteId(match.getTournament().getId(), primary.getId())
+                .orElseGet(() -> PlayerStatistic.builder()
+                        .tournament(match.getTournament())
+                        .athlete(primary)
+                        .club(club)
+                        .matchesPlayed(0).scores(0).assists(0).fouls(0).mvpCount(0)
+                        .build());
+
+        if (List.of(EventType.GOAL, EventType.PT_1, EventType.PT_2, EventType.PT_3).contains(type)) {
+            int pts = (type == EventType.PT_3) ? 3 : ((type == EventType.PT_2) ? 2 : 1);
+            stats.setScores(stats.getScores() + pts);
+        } else if (List.of(EventType.YELLOW_CARD, EventType.RED_CARD, EventType.FOUL, EventType.TECHNICAL_FOUL).contains(type)) {
+            stats.setFouls(stats.getFouls() + 1);
+        }
+        playerStatisticRepository.save(stats);
+    }
+
+    /**
+     * Xử lý Thống kê Kiến tạo
+     */
+    private void handleAssist(Match match, Club club, Athlete secondary, EventType type) {
+        if (secondary != null && type == EventType.GOAL && club != null) {
             PlayerStatistic secondaryStats = playerStatisticRepository
                     .findByTournamentIdAndAthleteId(match.getTournament().getId(), secondary.getId())
                     .orElseGet(() -> PlayerStatistic.builder()
@@ -448,55 +597,68 @@ public class RefereeService {
                             .club(club)
                             .scores(0).assists(0).fouls(0).matchesPlayed(0).mvpCount(0)
                             .build());
-
             secondaryStats.setAssists(secondaryStats.getAssists() + 1);
             playerStatisticRepository.save(secondaryStats);
         }
+    }
 
-        // --- D. XỬ LÝ HOÁN ĐỔI / BỔ SUNG ĐỘI HÌNH (THAY NGƯỜI) ---
-        if (type == EventType.SUBSTITUTION) {
-            if (secondary == null) {
-                throw new AppException("Sự kiện thay người hoặc bổ sung người bắt buộc phải có cầu thủ vào sân (secondaryAthleteId).");
-            }
+    /**
+     * Xử lý Thay người
+     */
+    private void handleSubstitution(Match match, Athlete primary, Athlete secondary, EventType type) {
+        if (type != EventType.SUBSTITUTION) return;
+        if (secondary == null) throw new AppException("Sự kiện thay người bắt buộc phải có cầu thủ vào sân (secondaryAthleteId).");
 
-            // 1. Xử lý người VÀO SÂN (Luôn luôn phải có)
-            MatchLineup enteringPlayer = matchLineupRepository
-                    .findByMatchIdAndAthleteId(match.getId(), secondary.getId())
-                    .orElseThrow(() -> new AppException("Không tìm thấy cầu thủ dự bị (ID: " + secondary.getId() + ") trong đội hình trận này."));
+        MatchLineup enteringPlayer = matchLineupRepository.findByMatchIdAndAthleteId(match.getId(), secondary.getId())
+                .orElseThrow(() -> new AppException("Không tìm thấy cầu thủ dự bị (ID: " + secondary.getId() + ") trong đội hình trận này."));
+        enteringPlayer.setLineupType(LineupType.STARTING);
+        matchLineupRepository.save(enteringPlayer);
 
-            enteringPlayer.setLineupType(LineupType.STARTING); // Đưa vào đá chính
-            matchLineupRepository.save(enteringPlayer);
-
-            // 2. Xử lý người RỜI SÂN (Có thể Null trong trường hợp bổ sung người sau thẻ đỏ)
-            if (primary != null) {
-                MatchLineup leavingPlayer = matchLineupRepository
-                        .findByMatchIdAndAthleteId(match.getId(), primary.getId())
-                        .orElseThrow(() -> new AppException("Không tìm thấy cầu thủ rời sân (ID: " + primary.getId() + ") trong đội hình trận này."));
-
-                leavingPlayer.setLineupType(LineupType.SUBSTITUTE); // Đẩy ra ghế dự bị
-                matchLineupRepository.save(leavingPlayer);
-            }
-        }
-
-        // --- E. XỬ LÝ THẺ ĐỎ (TRUẤT QUYỀN THI ĐẤU) ---
-        if (type == EventType.RED_CARD) {
-            if (primary == null) {
-                throw new AppException("Sự kiện thẻ đỏ bắt buộc phải có VĐV nhận thẻ (primaryAthleteId).");
-            }
-
-            // Tìm bản ghi của VĐV trong đội hình trận này
-            MatchLineup punishedPlayer = matchLineupRepository
-                    .findByMatchIdAndAthleteId(match.getId(), primary.getId())
-                    .orElseThrow(() -> new AppException("Không tìm thấy VĐV (ID: " + primary.getId() + ") trong đội hình trận này."));
-
-            // Gỡ bỏ quyền thi đấu -> Đẩy vào trạng thái SENT_OFF
-            punishedPlayer.setLineupType(LineupType.SENT_OFF);
-
-            // Lưu lại trạng thái mới
-            matchLineupRepository.save(punishedPlayer);
+        if (primary != null) {
+            MatchLineup leavingPlayer = matchLineupRepository.findByMatchIdAndAthleteId(match.getId(), primary.getId())
+                    .orElseThrow(() -> new AppException("Không tìm thấy cầu thủ rời sân (ID: " + primary.getId() + ") trong đội hình trận này."));
+            leavingPlayer.setLineupType(LineupType.SUBSTITUTE);
+            matchLineupRepository.save(leavingPlayer);
         }
     }
 
+    /**
+     * Xử lý Thẻ Đỏ
+     */
+    private void handleRedCard(Match match, Athlete primary, EventType type) {
+        if (type != EventType.RED_CARD) return;
+        if (primary == null) throw new AppException("Sự kiện thẻ đỏ bắt buộc phải có VĐV nhận thẻ (primaryAthleteId).");
+
+        MatchLineup punishedPlayer = matchLineupRepository.findByMatchIdAndAthleteId(match.getId(), primary.getId())
+                .orElseThrow(() -> new AppException("Không tìm thấy VĐV (ID: " + primary.getId() + ") trong đội hình trận này."));
+        punishedPlayer.setLineupType(LineupType.SENT_OFF);
+        matchLineupRepository.save(punishedPlayer);
+    }
+
+    /**
+     * Xác thực tính hợp lệ của trạng thái trận đấu với sự kiện
+     */
+    private void validateEventTiming(Match match, EventType eventType) {
+        if (eventType == EventType.RESUME_MATCH) {
+            if (!MatchStatus.PAUSED.equals(match.getStatus())) throw new AppException("Chỉ có thể tiếp tục khi trận đấu đang tạm dừng.");
+            match.setStatus(MatchStatus.IN_PROGRESS);
+        } else if (eventType == EventType.PAUSE_MATCH) {
+            if (!MatchStatus.IN_PROGRESS.equals(match.getStatus())) throw new AppException("Chỉ có thể tạm dừng khi trận đấu đang diễn ra.");
+            match.setStatus(MatchStatus.PAUSED);
+        } else if (eventType == EventType.MATCH_START) {
+            if (!MatchStatus.SCHEDULED.equals(match.getStatus())) throw new AppException("Trận đấu đã bắt đầu hoặc bị hủy.");
+            match.setStatus(MatchStatus.IN_PROGRESS);
+        } else if (eventType == EventType.MATCH_END) {
+            match.setStatus(MatchStatus.FINISHED);
+        } else {
+            if (!MatchStatus.IN_PROGRESS.equals(match.getStatus())) {
+                throw new AppException("Chỉ có thể ghi nhận sự kiện khi trận đấu đang diễn ra.");
+            }
+        }
+    }
+    // ========================= - END
+
+    // CHUC NANG CHOT TRAN DAU - START
     @Transactional
     public String finalizeMatch(Long refereeId, Long matchId, FinalizeMatchRequest request) {
         MatchReferee matchReferee = matchRefereeRepository.findByMatchIdAndRefereeId(matchId, refereeId)
@@ -671,4 +833,5 @@ public class RefereeService {
 
         return null;
     }
+    // ============================== - END
 }

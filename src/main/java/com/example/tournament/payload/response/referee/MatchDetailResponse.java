@@ -21,6 +21,9 @@ public class MatchDetailResponse {
     // Cấu hình luật thi đấu
     private Map<String, String> sportRules;
 
+    // THÊM MỚI: Danh sách chi tiết điểm số của từng Hiệp/Set (Dùng vẽ bảng tỷ số nhỏ)
+    private List<PeriodScoreDto> periodScores;
+
     // Danh sách đội hình 2 bên
     private TeamLineupDto homeTeam;
     private TeamLineupDto awayTeam;
@@ -33,13 +36,30 @@ public class MatchDetailResponse {
         private Long clubId;
         private String clubName;
         private String logoUrl;
-        private Integer currentScore;
+
+        // CẬP NHẬT Ý NGHĨA:
+        // - Với Bóng đá/Futsal: Đây là TỔNG BÀN THẮNG.
+        // - Với Cầu lông/Bóng bàn: Đây là TỶ SỐ SET (Số Set đã thắng, VD: 1 hoặc 2)
+        private Integer matchScore;
+
+        // THÊM MỚI: Điểm của hiệp/set ĐANG DIỄN RA
+        // Khi tạo Set mới (nhận event START_PERIOD), biến này tự động bắt đầu từ 0
+        private Integer currentPeriodScore;
 
         // Chia sẵn Đá chính và Dự bị
         private List<PlayerDto> startingPlayers;
         private List<PlayerDto> substitutePlayers;
-
         private List<PlayerDto> sentOffPlayers;
+    }
+
+    // THÊM MỚI OBJECT: Lưu lịch sử điểm số
+    @Data
+    @Builder
+    public static class PeriodScoreDto {
+        private String periodName;    // Sử dụng String để linh hoạt (VD: "Set 1", "Hiệp 1")
+        private Integer homeScore;    // Điểm đội nhà trong hiệp/set này (VD: 21)
+        private Integer awayScore;    // Điểm đội khách trong hiệp/set này (VD: 15)
+        private Boolean isFinished;   // Trạng thái (True khi có sự kiện END_PERIOD)
     }
 
     @Data
