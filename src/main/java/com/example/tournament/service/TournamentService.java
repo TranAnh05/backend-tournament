@@ -593,8 +593,10 @@ public class TournamentService {
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
 
         // 2. Query lấy giải đấu CÓ PHÂN TRANG
-        Page<Tournament> tournamentPage = tournamentRepository.findByStatus(TournamentStatus.REGISTRATION_CLOSE, pageable);
-
+        Page<Tournament> tournamentPage = tournamentRepository.findByStatusIn(
+                java.util.Arrays.asList(TournamentStatus.REGISTRATION_CLOSE, TournamentStatus.ONGOING),
+                pageable
+        );
         return tournamentPage.map(t -> {
             // Lấy danh sách đăng ký đã duyệt
             List<TournamentRegistration> approvedRegs = registrationRepository

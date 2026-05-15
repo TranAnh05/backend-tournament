@@ -105,4 +105,6 @@ public interface TournamentRepository extends JpaRepository<Tournament, Long> {
             "AND t.status IN ( 'REGISTRATION_CLOSE','ONGOING', 'FINISHED' ) " +
             "ORDER BY t.createdAt DESC")
     List<Tournament> findTournamentsForStandingsLookup(@Param("organizerId") Long organizerId);
+
+    Page<Tournament> findByStatusIn(List<TournamentStatus> statuses, Pageable pageable);
 }
