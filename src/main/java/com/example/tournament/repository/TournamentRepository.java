@@ -102,7 +102,7 @@ public interface TournamentRepository extends JpaRepository<Tournament, Long> {
             "JOIN FETCH t.sport s " +
             "WHERE t.organizer.id = :organizerId " +
             "AND t.isDeleted = false " +
-            "AND t.status IN ('ONGOING', 'REGISTRATION_CLOSE' ) " +
+            "AND t.status IN ( 'REGISTRATION_CLOSE','ONGOING' ) " +
             "ORDER BY t.createdAt DESC")
     List<Tournament> findTournamentsForStandingsLookup(@Param("organizerId") Long organizerId);
 }
