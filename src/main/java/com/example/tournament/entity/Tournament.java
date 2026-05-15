@@ -86,6 +86,14 @@ public class Tournament {
     @Column(name = "is_deleted")
     private Boolean isDeleted = false;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "champion_id")
+    private Club champion; // Nhà vô địch
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "runner_up_id")
+    private Club runnerUp; // Á quân
+
     @OneToMany(mappedBy = "tournament", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<TournamentRegistration> registrations = new ArrayList<>();
