@@ -84,4 +84,9 @@ public interface MatchRepository extends JpaRepository<Match, Long> {
 
     @Query("SELECT m.nextMatch FROM Match m WHERE m.id = :currentMatchId")
     Optional<Match> findNextMatchByCurrentMatchId(@Param("currentMatchId") Long currentMatchId);
+
+    @Query("SELECT m FROM Match m WHERE m.tournament.id = :tournamentId " +
+            "AND m.groupStage.stageType = 'KNOCKOUT' " +
+            "ORDER BY m.id ASC")
+    List<Match> findKnockoutMatchesByTournamentId(@Param("tournamentId") Long tournamentId);
 }

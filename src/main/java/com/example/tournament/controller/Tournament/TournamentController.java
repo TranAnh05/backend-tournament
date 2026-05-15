@@ -337,4 +337,20 @@ public class TournamentController {
                         .build()
         );
     }
+
+    @GetMapping("/{id}/knockout-bracket")
+    public ResponseEntity<ApiResponse<List<MatchKnockoutResponse>>> getKnockoutBracket(@PathVariable Long id) {
+        // Bước 1: Khai báo và gọi Service riêng biệt để lấy dữ liệu
+        List<MatchKnockoutResponse> bracketData = knockoutService.getKnockoutBracket(id);
+
+        // Bước 2: Khởi tạo Object ApiResponse bằng Builder mặc định (không sửa file gốc)
+        ApiResponse<List<MatchKnockoutResponse>> response = ApiResponse.<List<MatchKnockoutResponse>>builder()
+                .code(200)
+                .message("Lấy sơ đồ nhánh đấu thành công")
+                .result(bracketData)
+                .build();
+
+        // Bước 3: Trả về ResponseEntity
+        return ResponseEntity.ok(response);
+    }
 }

@@ -33,7 +33,7 @@ public class RefereeService {
     private final ClubRepository clubRepository;
     private final AthleteRepository athleteRepository;
     private final StandingRepository standingRepository;
-
+    private final KnockoutService knockoutService;
     @Transactional(readOnly = true)
     public List<RefereeAssignedMatchResponse> getAssignedMatches(Long refereeId, RefereeMatchRequest request) {
 
@@ -518,7 +518,14 @@ public class RefereeService {
         match.setStatus(MatchStatus.FINALIZED);
 
         if (isKnockoutMatch(match)) {
-            promoteWinnerToNextRound(match);
+            // 1. Xác định đội thắng trước
+            Club winner = determineWinner(match);
+            if (winner != null) {
+                match.setWinner(winner);
+
+                // 2. ✨ Gọi hàm thăng hạng từ KnockoutService
+                knockoutService.promoteWinnerToNextRound(match);
+            }
         }
         // Cập nhật Bảng xếp hạng
         updateStandings(match);
