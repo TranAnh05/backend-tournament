@@ -675,24 +675,24 @@ public class RefereeService {
             throw new AppException("Không thể chốt sổ trận đấu chưa diễn ra hoặc đã bị hủy.");
         }
 
-        // ĐÓNG BĂNG DỮ LIỆU
         matchReferee.setSignedAt(LocalDateTime.now());
         match.setStatus(MatchStatus.FINALIZED);
 
+        // ✨ XỬ LÝ PHÂN LUỒNG NGHIỆP VỤ (Vòng bảng vs Vòng Knockout)
         if (isKnockoutMatch(match)) {
-            // 1. Xác định đội thắng trước
+            // Nghiệp vụ 1: VÒNG KNOCKOUT -> Xác định người thắng và đẩy lên trận tiếp theo
             Club winner = determineWinner(match);
             if (winner != null) {
                 match.setWinner(winner);
-
-                // 2. ✨ Gọi hàm thăng hạng từ KnockoutService
+                // Gọi sang Service của Knockout để xử lý nối nhánh
                 knockoutService.promoteWinnerToNextRound(match);
             }
+        } else {
+            // Nghiệp vụ 2: VÒNG BẢNG -> Cộng điểm vào Bảng Xếp Hạng (Standings)
+            updateStandings(match);
         }
-        // Cập nhật Bảng xếp hạng
-        updateStandings(match);
 
-        // Chốt Thống kê Vận động viên (Cộng số trận ra sân)
+        // Chốt Thống kê Vận động viên (Cộng số trận ra sân - Áp dụng cho mọi vòng)
         finalizePlayerStatistics(match);
 
         // Lưu lại Ghi chú của Trọng tài (Tùy chọn)
@@ -710,7 +710,7 @@ public class RefereeService {
         matchRepository.save(match);
         matchRefereeRepository.save(matchReferee);
 
-        return "Chốt sổ biên bản thành công. Dữ liệu đã được khóa và tự động cập nhật lên BXH!";
+        return "Chốt sổ biên bản thành công. Trận đấu đã được xử lý hoàn tất!";
     }
 
     /**
@@ -808,28 +808,7 @@ public class RefereeService {
                 "KNOCKOUT".equals(match.getGroupStage().getStageType().name());
     }
 
-    private void promoteWinnerToNextRound(Match currentMatch) {
-        // 1. Xác định đội thắng dựa trên tỉ số (hoặc winnerId nếu bạn dùng cơ chế chọn trực tiếp)
-        Club winner = determineWinner(currentMatch);
-        if (winner == null) return;
 
-        // Lưu lại winner vào trận hiện tại để làm bằng chứng
-        currentMatch.setWinner(winner);
-
-        // 2. Tìm trận đấu tiếp theo mà đội thắng sẽ tham gia
-        // 'nextMatch' là thuộc tính liên kết trong Entity Match trỏ đến trận đấu vòng sau
-        Match nextMatch = currentMatch.getNextMatch();
-
-        if (nextMatch != null) {
-            // 3. Logic nhánh đấu: Trận có BracketPosition lẻ vào Home, chẵn vào Away
-            if (currentMatch.getBracketPosition() % 2 != 0) {
-                nextMatch.setHomeClub(winner);
-            } else {
-                nextMatch.setAwayClub(winner);
-            }
-            matchRepository.save(nextMatch);
-        }
-    }
 
     private Club determineWinner(Match match) {
         if (match.getHomeScore() == null || match.getAwayScore() == null) return null;

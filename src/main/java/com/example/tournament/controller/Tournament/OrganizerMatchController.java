@@ -3,11 +3,13 @@ package com.example.tournament.controller.Tournament;
 
 import com.example.tournament.entity.Court;
 import com.example.tournament.payload.request.Tournament.AssignRefereeRequest;
+import com.example.tournament.payload.request.Tournament.MatchResultRequest;
 import com.example.tournament.payload.response.ApiResponse;
 import com.example.tournament.payload.response.Tournament.CourtResponse;
 import com.example.tournament.payload.response.Tournament.OrganizerMatchResponse;
 import com.example.tournament.payload.response.Tournament.emptyscheduleRefereeResponse;
 import com.example.tournament.payload.response.club.MatchResponse;
+import com.example.tournament.service.KnockoutService;
 import com.example.tournament.service.OrganizerMatchService;
 import com.example.tournament.service.ScheduleService;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +25,7 @@ public class OrganizerMatchController {
 
     private final OrganizerMatchService matchService;
     private final ScheduleService scheduleService;
+    private final KnockoutService knockoutService;
 
     @GetMapping("/{tournamentId}/matches")
     public ResponseEntity<ApiResponse<List<OrganizerMatchResponse>>> getTournamentMatches(
@@ -110,12 +113,27 @@ public ResponseEntity<ApiResponse<List<CourtResponse>>> getAvailableCourts(@Path
     );
 }
 
-    @PatchMapping("/{matchId}/court")
+    @PatchMapping("/matches/{matchId}/court")
     public ResponseEntity<ApiResponse<OrganizerMatchResponse>> assignCourt(
             @PathVariable Long matchId,
             @RequestParam Long courtId) {
         return ResponseEntity.ok(
                 ApiResponse.<OrganizerMatchResponse>builder().code(200).message("Đổi sân thành công!").result(matchService.assignCourtToMatch(matchId, courtId)).build()
         );
+    }
+    @PutMapping("/matches/{id}/result")
+    public ResponseEntity<ApiResponse<String>> updateMatchResult(
+            @PathVariable Long id,
+            @RequestBody MatchResultRequest request) {
+
+        // Gọi Service xử lý toàn bộ nghiệp vụ
+        knockoutService.updateMatchResult(id, request);
+
+        // Trả về ApiResponse chuẩn xác
+        return ResponseEntity.ok(ApiResponse.<String>builder()
+                .code(200)
+                .message("Chốt kết quả và đẩy nhánh thành công!")
+                .result("Success")
+                .build());
     }
 }
