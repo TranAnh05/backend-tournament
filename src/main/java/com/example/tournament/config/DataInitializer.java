@@ -55,27 +55,27 @@ public class DataInitializer implements CommandLineRunner {
 
     private void initAdmin() {
         Role adminRole = roleRepository.findByRoleCode(RoleCode.ADMIN).orElseThrow();
-        createUserIfNotFound("admin@tournament.com", "System Admin", "my", adminRole);
+        createUserIfNotFound("admin@gmail.com", "System Admin", "Admin@123", adminRole);
     }
 
     private void initOrganizers() {
         Role orgRole = roleRepository.findByRoleCode(RoleCode.ORGANIZER).orElseThrow();
         for (int i = 1; i <= 3; i++) {
-            createUserIfNotFound("btc" + i + "@tournament.com", "Ban Tổ Chức " + i, "Btc@123", orgRole);
+            createUserIfNotFound("btc" + i + "@gmail.com", "Ban Tổ Chức " + i, "Btc@123", orgRole);
         }
     }
 
     private void initClubManagers() {
         Role clubRole = roleRepository.findByRoleCode(RoleCode.CLUB_MANAGER).orElseThrow();
         for (int i = 1; i <= 10; i++) {
-            createUserIfNotFound("club" + i + "@tournament.com", "Quản lý CLB " + i, "Club@123", clubRole);
+            createUserIfNotFound("club" + i + "@gmail.com", "Quản lý CLB " + i, "Club@123", clubRole);
         }
     }
 
     private void initReferees() {
         Role refRole = roleRepository.findByRoleCode(RoleCode.REFEREE).orElseThrow();
         for (int i = 1; i <= 15; i++) {
-            createUserIfNotFound("referee" + i + "@tournament.com", "Trọng tài " + i, "Referee@123", refRole);
+            createUserIfNotFound("referee" + i + "@gmail.com", "Trọng tài " + i, "Referee@123", refRole);
         }
     }
 
