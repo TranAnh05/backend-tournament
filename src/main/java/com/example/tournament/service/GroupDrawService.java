@@ -5,6 +5,7 @@ import com.example.tournament.entity.*;
 import com.example.tournament.enums.RegistrationStatus;
 import com.example.tournament.enums.StageStatus;
 import com.example.tournament.enums.StageType;
+import com.example.tournament.enums.TournamentStatus;
 import com.example.tournament.payload.response.Tournament.ClubStandingResponse;
 import com.example.tournament.payload.response.Tournament.GroupStageResponse;
 import com.example.tournament.repository.GroupStageRepository;
@@ -78,6 +79,8 @@ public class GroupDrawService {
                     .build();
             standings.add(standing);
         }
+
+        tournament.setStatus(TournamentStatus.ONGOING);
 
         standingRepository.saveAll(standings);
     }

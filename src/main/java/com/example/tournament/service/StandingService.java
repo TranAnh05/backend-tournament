@@ -26,6 +26,7 @@ public class StandingService {
     private final StandingRepository standingRepository;
     private final TournamentRepository tournamentRepository;
 
+
     @Transactional(readOnly = true)
     public TournamentStandingResponse getTournamentStandings(Long tournamentId) {
         // 1. Kiểm tra giải đấu tồn tại
@@ -123,8 +124,8 @@ public class StandingService {
 
         List<OverallStandingResponse.ClubOverallStandingDto> sortedRankings = aggregatedData.stream()
                 .map(this::mapToDto)
-                .sorted(getOverallComparator()) // Thuật toán sắp xếp "Thác nước"
-                .peek(dto -> dto.setOverallRank(rankGenerator.getAndIncrement())) // Gán thứ hạng sau khi sort
+                .sorted(getOverallComparator(tournament))
+                .peek(dto -> dto.setOverallRank(rankGenerator.getAndIncrement()))
                 .collect(Collectors.toList());
 
         return OverallStandingResponse.builder()
@@ -141,8 +142,21 @@ public class StandingService {
      * Ưu tiên 3: Tổng hiệu số
      * Ưu tiên 4: Tổng bàn thắng
      */
-    private Comparator<OverallStandingResponse.ClubOverallStandingDto> getOverallComparator() {
+    private Comparator<OverallStandingResponse.ClubOverallStandingDto> getOverallComparator(Tournament tournament) {
         return (c1, c2) -> {
+
+            if (tournament.getChampion() != null) {
+                String championName = tournament.getChampion().getName();
+                if (c1.getClubName().equals(championName)) return -1;
+                if (c2.getClubName().equals(championName)) return 1;
+            }
+
+            // ✨ ƯU TIÊN 2: Á QUÂN (Hạng 2)
+            if (tournament.getRunnerUp() != null) {
+                String runnerUpName = tournament.getRunnerUp().getName();
+                if (c1.getClubName().equals(runnerUpName)) return -1;
+                if (c2.getClubName().equals(runnerUpName)) return 1;
+            }
             // 1. So sánh cấp độ vòng đấu (Dựa trên trọng số tên vòng hoặc logic nghiệp vụ)
             // Lưu ý: Đội vào Chung kết luôn đứng trên đội bị loại ở Bán kết
             int stageCompare = compareStageLevel(c1.getHighestStageName(), c2.getHighestStageName());
@@ -181,7 +195,7 @@ public class StandingService {
         return OverallStandingResponse.ClubOverallStandingDto.builder()
                 .clubName(row[1] != null ? row[1].toString() : "N/A")
                 .logoUrl(row[2] != null ? row[2].toString() : null)
-                .highestStageName(row[3].toString())
+                .highestStageName(row[3] != null ? row[3].toString() : "Vòng Bảng")
                 .totalMatches(((Number) row[4]).intValue())
                 .totalWon(((Number) row[5]).intValue())
                 .totalDrawn(((Number) row[6]).intValue())
@@ -189,7 +203,7 @@ public class StandingService {
                 .totalGoalsScored(((Number) row[8]).intValue())
                 .totalGoalsAgainst(((Number) row[9]).intValue())
                 .totalDifference(((Number) row[10]).intValue())
-                .totalPoints(((Number) row[11]).intValue()) // Index cuối cùng là 11
+                .totalPoints(((Number) row[11]).intValue())
                 .build();
     }
 }
