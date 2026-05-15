@@ -7,6 +7,7 @@ import com.example.tournament.entity.Tournament;
 import com.example.tournament.enums.MatchStatus;
 import com.example.tournament.enums.StageStatus;
 import com.example.tournament.enums.StageType;
+import com.example.tournament.payload.request.Tournament.MatchResultRequest;
 import com.example.tournament.payload.response.Tournament.MatchKnockoutResponse;
 import com.example.tournament.repository.ClubRepository;
 import com.example.tournament.repository.GroupStageRepository;
@@ -86,12 +87,11 @@ public class KnockoutService {
 
         // --- Bước B: Điền đội vào Vòng 1 và xử lý ĐẶC CÁCH (Byes) ---
         // Lấy danh sách các trận của Vòng 1 (nằm ở cuối list allMatches)
-        List<Match> firstRoundMatches = allMatches.stream()
-                .filter(m -> m.getNextMatch() != null || totalRounds == 1) // Logic lọc vòng 1
-                .limit(nextPowerOf2 / 2)
-                .collect(Collectors.toList());
+        List<Match> firstRoundMatches = nextRoundMatches;
 
+        // Điền đội vào Vòng 1
         fillTeamsIntoFirstRound(firstRoundMatches, sortedQualifiedClubs);
+        matchRepository.saveAll(firstRoundMatches);
     }
 
     private List<Club> getSortedClubs(List<Long> qualifiedClubIds) {
@@ -198,4 +198,42 @@ public class KnockoutService {
                 .score(score)
                 .build();
     }
-}
+
+    @Transactional
+    public void updateMatchResult(Long matchId, MatchResultRequest request) {
+        Match currentMatch = matchRepository.findById(matchId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy trận đấu!"));
+
+        // 1. Cập nhật tỷ số và trạng thái
+        currentMatch.setHomeScore(request.getHomeScore());
+        currentMatch.setAwayScore(request.getAwayScore());
+        currentMatch.setStatus(MatchStatus.FINALIZED);
+
+        // 2. Xác định đội thắng
+        Club winner = null;
+        if (request.getHomeScore() > request.getAwayScore()) {
+            winner = currentMatch.getHomeClub();
+        } else if (request.getAwayScore() > request.getHomeScore()) {
+            winner = currentMatch.getAwayClub();
+        } else {
+            // Xử lý hòa (có thể yêu cầu Penalty hoặc hiệp phụ tùy môn thể thao)
+            throw new RuntimeException("Trận đấu Knockout phải có đội thắng!");
+        }
+        currentMatch.setWinner(winner);
+
+        // 3. ✨ LOGIC ĐẨY ĐỘI THẮNG LÊN TRẬN TIẾP THEO
+        Match nextMatch = currentMatch.getNextMatch();
+        if (nextMatch != null && winner != null) {
+            // Sử dụng vị trí nhánh (bracketPosition) để quyết định làm Home hay Away
+            // Quy tắc: Vị trí lẻ (1, 3, 5...) -> Home | Vị trí chẵn (2, 4, 6...) -> Away
+            if (currentMatch.getBracketPosition() % 2 != 0) {
+                nextMatch.setHomeClub(winner);
+            } else {
+                nextMatch.setAwayClub(winner);
+            }
+            matchRepository.save(nextMatch);
+        }
+
+        matchRepository.save(currentMatch);
+    }
+    }
