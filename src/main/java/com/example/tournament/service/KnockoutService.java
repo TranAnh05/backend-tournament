@@ -167,6 +167,9 @@ public class KnockoutService {
                 nextMatch.setAwayClub(currentMatch.getWinner());
             }
             matchRepository.save(nextMatch);
+        }else {
+            // CHUYỂN GIAO TRÁCH NHIỆM CHO HÀM CHUYÊN TRÁCH
+            awardTournamentTitles(currentMatch);
         }
     }
 
@@ -235,5 +238,23 @@ public class KnockoutService {
         }
 
         matchRepository.save(currentMatch);
+    }
+   // CHUYÊN XỬ LÝ TRAO CÚP VÀ ĐÓNG GIẢI
+    private void awardTournamentTitles(Match finalMatch) {
+        // Tương lai: Nếu có trận tranh hạng 3, bạn chỉ cần check thêm điều kiện ở đây
+        // Ví dụ: if (finalMatch.getMatchType() == MatchType.BRONZE) return;
+
+        Club winner = finalMatch.getWinner();
+        Club loser = winner.getId().equals(finalMatch.getHomeClub().getId())
+                ? finalMatch.getAwayClub()
+                : finalMatch.getHomeClub();
+
+        Tournament tournament = finalMatch.getTournament();
+
+        tournament.setChampion(winner);
+        tournament.setRunnerUp(loser);
+        // Có thể gọi thêm TournamentService.completeTournament(tournament.getId()) ở đây
+
+        tournamentRepository.save(tournament);
     }
     }
