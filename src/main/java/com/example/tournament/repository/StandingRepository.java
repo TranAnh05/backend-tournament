@@ -24,7 +24,7 @@ public interface StandingRepository extends JpaRepository<Standing, Long> {
             "JOIN FETCH s.club c " +
             "JOIN FETCH s.groupStage g " +
             "WHERE s.tournament.id = :tournamentId " +
-            "AND g.stageType = 'GROUP'")
+            "AND g.stageType IN ('GROUP', 'KNOCKOUT')")
     List<Standing> findStandingsWithDetailsByTournamentId(@Param("tournamentId") Long tournamentId);
 
     @Query("SELECT s.club.id, " +         // Index 0
